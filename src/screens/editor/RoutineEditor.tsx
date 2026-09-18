@@ -7,13 +7,14 @@ import {
   ExercisePhoto,
   Header,
   MUSCLE_ICON,
+  MUSCLE_LABEL,
   Section,
 } from '../../components/ui'
 import { usePhotoURL } from '../../lib/photo'
 import { deleteRoutineExercise, putRoutine, putRoutineExercise } from '../../lib/db'
 import { formatClock } from '../../lib/stats'
 import { useApp } from '../../lib/store'
-import { newId, nowISO, type Exercise, type RoutineExercise } from '../../lib/types'
+import { newId, nowISO, type Exercise, type MuscleGroup, type RoutineExercise } from '../../lib/types'
 
 export default function RoutineEditor() {
   const { routineId } = useParams()
@@ -45,11 +46,16 @@ export default function RoutineEditor() {
   }
 
   const addExercise = async (exercise: Exercise) => {
+    // items.length colide com posicoes existentes depois de qualquer remocao
+    // (deixa um buraco), duplicando posicao e travando a reordenacao depois.
+    const nextPosition = items.length
+      ? Math.max(...items.map((entry) => entry.position)) + 1
+      : 0
     await putRoutineExercise({
       id: newId(),
       routine_id: routine.id,
       exercise_id: exercise.id,
-      position: items.length,
+      position: nextPosition,
       target_sets: 3,
       target_reps: 10,
       target_weight: 0,
@@ -65,14 +71,29 @@ export default function RoutineEditor() {
     await reload()
   }
 
-  /** Troca de posicao com o vizinho: reordenar sem arrastar, que no dedo falha. */
+  /**
+   * Troca de posicao com o vizinho: reordenar sem arrastar, que no dedo falha.
+   * Reescreve a lista toda como 0..n-1 (nao so troca os dois valores) porque
+   * posicoes duplicadas de treinos antigos (bug corrigido em addExercise)
+   * faziam a troca virar um no-op — assim qualquer reordenacao ja conserta a
+   * lista de uma vez.
+   */
   const move = async (index: number, direction: -1 | 1) => {
     const target = index + direction
     if (target < 0 || target >= items.length) return
-    const a = items[index]
-    const b = items[target]
-    await putRoutineExercise({ ...a, position: b.position, updated_at: nowISO() })
-    await putRoutineExercise({ ...b, position: a.position, updated_at: nowISO() })
+    const reordered = [...items]
+    const [moved] = reordered.splice(index, 1)
+    reordered.splice(target, 0, moved)
+
+    const writes = reordered
+      .map((entry, position) => ({ entry, position }))
+      .filter(({ entry, position }) => entry.position !== position)
+
+    await Promise.all(
+      writes.map(({ entry, position }) =>
+        putRoutineExercise({ ...entry, position, updated_at: nowISO() }),
+      ),
+    )
     await reload()
   }
 
@@ -313,8 +334,18 @@ function ExercisePicker({
   onCreate: () => void
 }) {
   const [query, setQuery] = useState('')
-  const filtered = exercises.filter((exercise) =>
-    exercise.name.toLowerCase().includes(query.trim().toLowerCase()),
+  const [group, setGroup] = useState<MuscleGroup | null>(null)
+
+  /** So mostra chips de categorias que tem exercicio cadastrado — filtro pra categoria vazia nao serve pra nada. */
+  const groupsPresent = useMemo(
+    () => [...new Set(exercises.map((exercise) => exercise.muscle_group))],
+    [exercises],
+  )
+
+  const filtered = exercises.filter(
+    (exercise) =>
+      exercise.name.toLowerCase().includes(query.trim().toLowerCase()) &&
+      (!group || exercise.muscle_group === group),
   )
 
   return (
@@ -330,6 +361,34 @@ function ExercisePicker({
         <Button variant="ghost" size="sm" onClick={onClose}>
           Fechar
         </Button>
+      </div>
+
+      <div className="flex items-center gap-1.5 px-4 pb-3">
+        {/* Fica fora da area com scroll: com muitas categorias, "limpar" nao pode
+            depender de rolar a fila toda ate o fim para ser alcancado. */}
+        {group && (
+          <button
+            type="button"
+            onClick={() => setGroup(null)}
+            className="shrink-0 rounded-full bg-ink-800 px-3 py-1.5 text-xs font-semibold text-fire-400 active:bg-ink-700"
+          >
+            ✕ Limpar
+          </button>
+        )}
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          {groupsPresent.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setGroup((current) => (current === option ? null : option))}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                group === option ? 'bg-brand-600 text-white' : 'bg-ink-800 text-ink-300'
+              }`}
+            >
+              {MUSCLE_LABEL[option]}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-6">

@@ -39,6 +39,9 @@ export default function Home() {
   const heat = useMemo(() => heatmapDays(sessions, setLogs), [sessions, setLogs])
   const weeks = useMemo(() => bucketize(sessions, setLogs, 'week', 2), [sessions, setLogs])
 
+  /** Ja treinou hoje: a sugestao de hoje some — nao insiste em treino que ja rolou. */
+  const trainedToday = streak.days.includes(format(new Date(), 'yyyy-MM-dd'))
+
   /** So aparece o lembrete se ainda nao registrou peso na semana atual (seg-dom). */
   const loggedWeightThisWeek = useMemo(() => {
     const thisWeek = weekKeyOf(new Date())
@@ -160,7 +163,7 @@ export default function Home() {
         />
       ) : (
         <>
-          {!active && suggested && (
+          {!active && !trainedToday && suggested && (
             <Section title="Sugestão de hoje">
               <Card className="overflow-hidden p-4">
                 <p className="text-lg font-bold">{suggested.name}</p>

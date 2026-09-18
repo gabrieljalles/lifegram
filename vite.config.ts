@@ -27,6 +27,13 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallbackDenylist: [/^\/api/],
+        // Sem isso, um SW novo so assume depois que TODAS as abas da versao
+        // antiga fecharem — no PWA instalado, a tela que abriu primeiro fica
+        // presa na versao antiga (o menu inferior "some" nela) ate algo forcar
+        // a atualizacao. clientsClaim + skipWaiting fazem o SW novo assumir na
+        // hora, mesmo com a aba ja aberta.
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],
