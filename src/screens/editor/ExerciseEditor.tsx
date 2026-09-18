@@ -7,6 +7,7 @@ import { formatClock, formatWeight } from '../../lib/stats'
 import { useApp } from '../../lib/store'
 import {
   DEFAULT_REP_CEILING,
+  DEFAULT_REP_FLOOR,
   DEFAULT_REST_SECONDS,
   DEFAULT_WEIGHT_INCREMENT,
   MUSCLE_GROUPS,
@@ -31,6 +32,7 @@ export default function ExerciseEditor() {
   const [group, setGroup] = useState<MuscleGroup>('outro')
   const [rest, setRest] = useState(DEFAULT_REST_SECONDS)
   const [notes, setNotes] = useState('')
+  const [floor, setFloor] = useState(DEFAULT_REP_FLOOR)
   const [ceiling, setCeiling] = useState(DEFAULT_REP_CEILING)
   const [increment, setIncrement] = useState(DEFAULT_WEIGHT_INCREMENT)
   const [draft, setDraft] = useState<Exercise | null>(null)
@@ -42,6 +44,7 @@ export default function ExerciseEditor() {
       setGroup(existing.muscle_group)
       setRest(existing.default_rest_seconds)
       setNotes(existing.notes ?? '')
+      setFloor(existing.rep_floor ?? DEFAULT_REP_FLOOR)
       setCeiling(existing.rep_ceiling ?? DEFAULT_REP_CEILING)
       setIncrement(existing.weight_increment ?? DEFAULT_WEIGHT_INCREMENT)
       setDraft(existing)
@@ -65,6 +68,7 @@ export default function ExerciseEditor() {
           photo_url: null,
           photo_local_key: null,
           default_rest_seconds: rest,
+          rep_floor: floor,
           rep_ceiling: ceiling,
           weight_increment: increment,
           notes: null,
@@ -93,6 +97,7 @@ export default function ExerciseEditor() {
       photo_url: draft?.photo_url ?? existing?.photo_url ?? null,
       photo_local_key: draft?.photo_local_key ?? existing?.photo_local_key ?? null,
       default_rest_seconds: rest,
+      rep_floor: floor,
       rep_ceiling: ceiling,
       weight_increment: increment,
       notes: notes.trim() || null,
@@ -199,20 +204,43 @@ export default function ExerciseEditor() {
         <div className="grid grid-cols-2 gap-2">
           <label className="block rounded-xl border border-ink-700 bg-ink-850 p-3">
             <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
-              Teto de reps
+              Reps mínimas
             </span>
             <input
               type="number"
               inputMode="numeric"
-              value={ceiling}
+              value={floor}
               min={1}
-              onChange={(event) => setCeiling(Math.max(1, Number(event.target.value) || 1))}
+              onChange={(event) => {
+                const value = Math.max(1, Number(event.target.value) || 1)
+                setFloor(value)
+                setCeiling((current) => Math.max(current, value + 1))
+              }}
               className="tnum mt-1 w-full bg-transparent text-center text-2xl font-bold outline-none"
             />
           </label>
           <label className="block rounded-xl border border-ink-700 bg-ink-850 p-3">
             <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
-              Aumento (kg)
+              Reps máximas
+            </span>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={ceiling}
+              min={2}
+              onChange={(event) => {
+                const value = Math.max(2, Number(event.target.value) || 2)
+                setCeiling(value)
+                setFloor((current) => Math.min(current, value - 1))
+              }}
+              className="tnum mt-1 w-full bg-transparent text-center text-2xl font-bold outline-none"
+            />
+          </label>
+        </div>
+        <div className="mt-2">
+          <label className="block rounded-xl border border-ink-700 bg-ink-850 p-3">
+            <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+              Salto de carga (kg)
             </span>
             <input
               type="number"
@@ -228,11 +256,13 @@ export default function ExerciseEditor() {
           </label>
         </div>
         <p className="mt-2 px-1 text-[11px] leading-relaxed text-ink-400">
-          Quando você bater <strong className="tnum text-ink-300">{ceiling}</strong> repetições em{' '}
-          <em>todas</em> as séries, o app sugere subir{' '}
-          <strong className="tnum text-ink-300">{formatWeight(increment)} kg</strong> na próxima vez
-          — é assim que o progresso continua quando aumentar carga fica difícil.
-          {group === 'cardio' && ' Exercícios de cardio não recebem essa sugestão.'}
+          Treine entre <strong className="tnum text-ink-300">{floor}</strong> e{' '}
+          <strong className="tnum text-ink-300">{ceiling}</strong> repetições. Bater{' '}
+          {ceiling} em <em>todas</em> as séries sugere subir{' '}
+          <strong className="tnum text-ink-300">{formatWeight(increment)} kg</strong>; cair abaixo de{' '}
+          {floor} em qualquer série sugere baixar. Se o 1RM estimado estagnar por várias sessões
+          dentro da faixa, o app sugere um treino mais leve para destravar o platô.
+          {group === 'cardio' && ' Exercícios de cardio não recebem essas sugestões.'}
         </p>
         <p className="mt-1.5 px-1 text-[11px] leading-relaxed text-ink-400">
           Ajuste o aumento ao equipamento: barra costuma pular de 2,5 em 2,5 kg (anilha de 1,25 de

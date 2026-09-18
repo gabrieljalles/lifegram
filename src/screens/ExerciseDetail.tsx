@@ -10,12 +10,14 @@ import {
   ExercisePhoto,
   Header,
   MuscleChip,
+  ProgressionCard,
   Section,
   StatTile,
 } from '../components/ui'
 import { usePhotoURL } from '../lib/photo'
-import { formatVolume, formatWeight, summarizeExercise } from '../lib/stats'
+import { formatVolume, formatWeight, suggestProgression, summarizeExercise } from '../lib/stats'
 import { useApp } from '../lib/store'
+import { DEFAULT_REP_CEILING, DEFAULT_REP_FLOOR, DEFAULT_WEIGHT_INCREMENT } from '../lib/types'
 
 export default function ExerciseDetail() {
   const { exerciseId } = useParams()
@@ -29,6 +31,16 @@ export default function ExerciseDetail() {
   )
   const summary = useMemo(() => summarizeExercise(logs), [logs])
   const photo = usePhotoURL(exercise)
+
+  const suggestion = useMemo(() => {
+    if (!exercise || logs.length === 0) return null
+    return suggestProgression(logs, {
+      rep_floor: exercise.rep_floor ?? DEFAULT_REP_FLOOR,
+      rep_ceiling: exercise.rep_ceiling ?? DEFAULT_REP_CEILING,
+      weight_increment: exercise.weight_increment ?? DEFAULT_WEIGHT_INCREMENT,
+      muscle_group: exercise.muscle_group,
+    })
+  }, [exercise, logs])
 
   const chartData = useMemo(
     () =>
@@ -90,6 +102,12 @@ export default function ExerciseDetail() {
         />
       ) : (
         <>
+          {suggestion && (
+            <Section title="Recomendação">
+              <ProgressionCard suggestion={suggestion} />
+            </Section>
+          )}
+
           {/* ------------------------------------- o numero que o usuario quer */}
           <Section title="Progresso mensal">
             <Card

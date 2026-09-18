@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import PRCelebration from '../components/PRCelebration'
 import RestTimer from '../components/RestTimer'
-import { Button, ExercisePhoto } from '../components/ui'
+import { Button, ExercisePhoto, ProgressionCard } from '../components/ui'
 import { usePhotoURL } from '../lib/photo'
 import {
   bestSet,
@@ -11,12 +11,13 @@ import {
   formatDuration,
   formatVolume,
   formatWeight,
-  suggestLoadIncrease,
+  suggestProgression,
   totalVolume,
 } from '../lib/stats'
 import { useApp } from '../lib/store'
 import {
   DEFAULT_REP_CEILING,
+  DEFAULT_REP_FLOOR,
   DEFAULT_WEIGHT_INCREMENT,
   type SetLog,
 } from '../lib/types'
@@ -61,20 +62,24 @@ export default function ActiveWorkout() {
     setReps(item.target_reps)
   }, [item?.exercise_id, active?.set_number, active?.cursor])
 
+  /** Todo o historico do exercicio antes desta sessao — base da comparacao e da recomendacao. */
+  const priorLogs = useMemo(() => {
+    if (!item || !active) return []
+    return (logsByExercise.get(item.exercise_id) ?? []).filter(
+      (log) => log.session_id !== active.session_id,
+    )
+  }, [item?.exercise_id, logsByExercise, active?.session_id])
+
   /**
    * A sessao anterior deste exercicio, inteira: serie a serie, carga de topo e
    * volume. E a referencia para saber, no meio do treino, se hoje esta melhor
    * ou pior que a ultima vez.
    */
   const lastSession = useMemo(() => {
-    if (!item || !active) return null
-    const previous = (logsByExercise.get(item.exercise_id) ?? []).filter(
-      (log) => log.session_id !== active.session_id,
-    )
-    if (previous.length === 0) return null
+    if (priorLogs.length === 0) return null
 
-    const lastId = previous[previous.length - 1].session_id
-    const sets = previous.filter((log) => log.session_id === lastId)
+    const lastId = priorLogs[priorLogs.length - 1].session_id
+    const sets = priorLogs.filter((log) => log.session_id === lastId)
     return {
       date: parseISO(sets[0].completed_at),
       sets,
@@ -83,7 +88,7 @@ export default function ActiveWorkout() {
       /** Referencia da comparacao: a melhor serie daquele dia, por 1RM. */
       best: bestSet(sets) as SetLog,
     }
-  }, [item?.exercise_id, logsByExercise, active?.session_id])
+  }, [priorLogs])
 
   /** O que ja foi feito hoje neste exercicio, para comparar ao vivo. */
   const todaySets = useMemo(() => {
@@ -94,20 +99,26 @@ export default function ActiveWorkout() {
   }, [item?.exercise_id, logsByExercise, active?.session_id])
 
   /**
-   * Dupla progressao: se na ultima vez voce bateu o teto de repeticoes em
-   * todas as series, a carga ja "venceu" — a sugestao aparece aqui, uma vez,
-   * e some sozinha assim que voce sobe o peso.
+   * Dupla progressao por faixa de reps: subir ao bater o teto em todas as
+   * series, baixar ao cair abaixo do piso, ou sugerir um deload se o 1RM
+   * estimado estagnou. Nunca aplica sozinho — so aparece como sugestao, uma
+   * vez, e some assim que voce ajusta a carga na direcao certa.
    */
   const suggestion = useMemo(() => {
-    if (!exercise || !lastSession) return null
-    // Cardio nao progride por carga; o teto de reps nao se aplica.
-    if (exercise.muscle_group === 'cardio') return null
-    return suggestLoadIncrease(
-      lastSession.sets,
-      exercise.rep_ceiling ?? DEFAULT_REP_CEILING,
-      exercise.weight_increment ?? DEFAULT_WEIGHT_INCREMENT,
-    )
-  }, [exercise?.id, exercise?.rep_ceiling, exercise?.weight_increment, lastSession])
+    if (!exercise || priorLogs.length === 0) return null
+    return suggestProgression(priorLogs, {
+      rep_floor: exercise.rep_floor ?? DEFAULT_REP_FLOOR,
+      rep_ceiling: exercise.rep_ceiling ?? DEFAULT_REP_CEILING,
+      weight_increment: exercise.weight_increment ?? DEFAULT_WEIGHT_INCREMENT,
+      muscle_group: exercise.muscle_group,
+    })
+  }, [
+    exercise?.rep_floor,
+    exercise?.rep_ceiling,
+    exercise?.weight_increment,
+    exercise?.muscle_group,
+    priorLogs,
+  ])
 
   if (!active) return <Navigate to="/" replace />
   if (!item || !exercise) {
@@ -286,15 +297,13 @@ export default function ActiveWorkout() {
             label="Carga"
             unit="kg"
             value={formatWeight(weight)}
-            onDecrease={() => setWeight((w) => Math.max(0, Math.round((w - WEIGHT_STEP) * 10) / 10))}
+            onDecrease={() => setWeight((w) => Math.round((w - WEIGHT_STEP) * 10) / 10)}
             onIncrease={() => setWeight((w) => Math.round((w + WEIGHT_STEP) * 10) / 10)}
-            onSet={(raw) => setWeight(Math.max(0, raw))}
+            onSet={(raw) => setWeight(raw)}
             raw={weight}
             step={WEIGHT_STEP}
             bigStep={WEIGHT_BIG_STEP}
-            onBigStep={(delta) =>
-              setWeight((w) => Math.max(0, Math.round((w + delta) * 10) / 10))
-            }
+            onBigStep={(delta) => setWeight((w) => Math.round((w + delta) * 10) / 10)}
           />
           <Stepper
             label="Repetições"
@@ -308,25 +317,13 @@ export default function ActiveWorkout() {
           />
         </div>
 
-        {/* A sugestao some sozinha quando a carga chega no valor sugerido. */}
-        {suggestion && weight < suggestion.weight && (
-          <div className="animate-rise mt-4 w-full max-w-sm rounded-2xl border border-pr-500/50 bg-pr-500/10 px-3.5 py-3">
-            <p className="flex items-center gap-1.5 text-xs font-bold text-pr-400">
-              <span aria-hidden="true">🔺</span> Hora de subir a carga
-            </p>
-            <p className="tnum mt-1 text-[11px] leading-relaxed text-ink-200">
-              Na última vez você fez {suggestion.ceiling}+ repetições nas {suggestion.sets} séries
-              com {formatWeight(suggestion.from)} kg. Subir o peso mantém o estímulo.
-            </p>
-            <button
-              type="button"
-              onClick={() => setWeight(suggestion.weight)}
-              className="tnum mt-2 w-full rounded-xl bg-pr-500 py-2 text-sm font-bold text-ink-950 active:bg-pr-400"
-            >
-              Usar {formatWeight(suggestion.weight)} kg
-            </button>
-          </div>
-        )}
+        {/* A sugestao some sozinha quando a carga ja foi ajustada na direcao certa. */}
+        {suggestion &&
+          (suggestion.action === 'increase' ? weight < suggestion.weight : weight > suggestion.weight) && (
+            <div className="animate-rise mt-4 w-full max-w-sm">
+              <ProgressionCard suggestion={suggestion} onApply={() => setWeight(suggestion.weight)} />
+            </div>
+          )}
 
         {lastSession ? (
           <LastSessionPanel

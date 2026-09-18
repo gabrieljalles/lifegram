@@ -4,7 +4,14 @@ import { photoKeyFor } from './photo'
 import type { Exercise, ID, SyncTable } from './types'
 import { nowISO } from './types'
 
-const TABLES: SyncTable[] = ['exercises', 'routines', 'routine_exercises', 'sessions', 'set_logs']
+const TABLES: SyncTable[] = [
+  'exercises',
+  'routines',
+  'routine_exercises',
+  'sessions',
+  'set_logs',
+  'body_weight_logs',
+]
 
 /** routine_exercises herda a dona pela rotina, entao nao carrega user_id. */
 const HAS_USER_ID: Record<SyncTable, boolean> = {
@@ -13,6 +20,7 @@ const HAS_USER_ID: Record<SyncTable, boolean> = {
   routine_exercises: false,
   sessions: true,
   set_logs: true,
+  body_weight_logs: true,
 }
 
 /** Campos que so existem no cliente e nao devem viajar para o Postgres. */

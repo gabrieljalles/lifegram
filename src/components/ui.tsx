@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { formatWeight, type ProgressionSuggestion } from '../lib/stats'
 import type { MuscleGroup } from '../lib/types'
 
 /* ----------------------------------------------------------- cabecalho */
@@ -258,5 +259,69 @@ export function Delta({ percent, suffix = '' }: { percent: number; suffix?: stri
       {up ? '+' : ''}
       {rounded}%{suffix}
     </span>
+  )
+}
+
+/* ---------------------------------------------------- recomendacao de carga */
+
+const PROGRESSION_META: Record<
+  ProgressionSuggestion['action'],
+  { icon: string; title: string; border: string; bg: string; text: string; button: string }
+> = {
+  increase: {
+    icon: '🔺',
+    title: 'Hora de subir a carga',
+    border: 'border-pr-500/50',
+    bg: 'bg-pr-500/10',
+    text: 'text-pr-400',
+    button: 'bg-pr-500 text-ink-950 active:bg-pr-400',
+  },
+  decrease: {
+    icon: '🔻',
+    title: 'Considere baixar a carga',
+    border: 'border-fire-500/50',
+    bg: 'bg-fire-500/10',
+    text: 'text-fire-400',
+    button: 'bg-fire-500 text-ink-950 active:bg-fire-400',
+  },
+  deload: {
+    icon: '🧊',
+    title: 'Progresso estagnado — que tal um treino mais leve?',
+    border: 'border-brand-500/50',
+    bg: 'bg-brand-600/10',
+    text: 'text-brand-400',
+    button: 'bg-brand-600 text-white active:bg-brand-500',
+  },
+}
+
+/**
+ * Card de recomendacao de carga (subir, baixar ou destravar um plato).
+ * `onApply` e opcional: no historico do exercicio a recomendacao e so
+ * informativa, e so ganha o botao de aplicar dentro do treino ativo.
+ */
+export function ProgressionCard({
+  suggestion,
+  onApply,
+}: {
+  suggestion: ProgressionSuggestion
+  onApply?: () => void
+}) {
+  const meta = PROGRESSION_META[suggestion.action]
+  return (
+    <div className={`rounded-2xl border ${meta.border} ${meta.bg} px-3.5 py-3`}>
+      <p className={`flex items-center gap-1.5 text-xs font-bold ${meta.text}`}>
+        <span aria-hidden="true">{meta.icon}</span> {meta.title}
+      </p>
+      <p className="tnum mt-1 text-[11px] leading-relaxed text-ink-200">{suggestion.reason}</p>
+      {onApply && (
+        <button
+          type="button"
+          onClick={onApply}
+          className={`tnum mt-2 w-full rounded-xl py-2 text-sm font-bold ${meta.button}`}
+        >
+          Usar {formatWeight(suggestion.weight)} kg
+        </button>
+      )}
+    </div>
   )
 }

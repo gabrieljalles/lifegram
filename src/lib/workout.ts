@@ -25,6 +25,7 @@ import type {
 } from './types'
 import {
   DEFAULT_REP_CEILING,
+  DEFAULT_REP_FLOOR,
   DEFAULT_REST_SECONDS,
   DEFAULT_WEIGHT_INCREMENT,
   newId,
@@ -376,6 +377,7 @@ export async function seedStarterData(): Promise<void> {
         photo_url: null,
         photo_local_key: null,
         default_rest_seconds: DEFAULT_REST_SECONDS,
+        rep_floor: DEFAULT_REP_FLOOR,
         rep_ceiling: DEFAULT_REP_CEILING,
         weight_increment: DEFAULT_WEIGHT_INCREMENT,
         notes: null,

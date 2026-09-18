@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { SERIES, SessionBars, VolumeBars } from '../components/charts'
+import { format } from 'date-fns'
+import { SERIES, SessionBars, VolumeBars, WeightLine } from '../components/charts'
 import {
   Card,
   Delta,
@@ -14,6 +15,8 @@ import {
   bucketize,
   formatVolume,
   formatWeight,
+  linearTrend,
+  parseLocalDate,
   periodDelta,
   summarizeExercise,
   totalVolume,
@@ -29,7 +32,7 @@ const PERIODS: Array<{ id: Period; label: string; count: number; unit: string }>
 ]
 
 export default function Stats() {
-  const { sessions, setLogs, exercises, exerciseById, logsByExercise } = useApp()
+  const { sessions, setLogs, bodyWeightLogs, exercises, exerciseById, logsByExercise } = useApp()
   const [period, setPeriod] = useState<Period>('week')
 
   const config = PERIODS.find((p) => p.id === period) as (typeof PERIODS)[number]
@@ -96,15 +99,54 @@ export default function Stats() {
     [sessions],
   )
 
+  const weightPoints = useMemo(
+    () =>
+      bodyWeightLogs.map((log) => ({
+        label: format(parseLocalDate(log.logged_at), 'dd/MM'),
+        date: parseLocalDate(log.logged_at),
+        weight: log.weight_kg,
+      })),
+    [bodyWeightLogs],
+  )
+  const weightTrend = useMemo(
+    () =>
+      linearTrend(
+        bodyWeightLogs.map((log) => ({ date: parseLocalDate(log.logged_at), value: log.weight_kg })),
+      ),
+    [bodyWeightLogs],
+  )
+  const latestWeight = bodyWeightLogs[bodyWeightLogs.length - 1]?.weight_kg ?? null
+
+  const bodyWeightSection = bodyWeightLogs.length > 0 && (
+    <Section title="Peso corporal">
+      <Card className="p-3 pr-4">
+        <div className="flex items-baseline gap-2 px-1">
+          <span className="tnum text-2xl font-bold leading-none">{formatWeight(latestWeight ?? 0)}</span>
+          <span className="text-sm font-semibold text-ink-300">kg</span>
+          {weightTrend.reliable && (
+            <span className="tnum ml-auto text-xs font-bold text-ink-300">
+              {weightTrend.perMonth >= 0 ? '+' : ''}
+              {formatWeight(weightTrend.perMonth)} kg/mês
+            </span>
+          )}
+        </div>
+        <div className="mt-2">
+          <WeightLine data={weightPoints} />
+        </div>
+      </Card>
+    </Section>
+  )
+
   if (setLogs.length === 0) {
     return (
       <div>
         <header className="safe-t px-4 pb-2 pt-4">
           <h1 className="text-2xl font-bold tracking-tight">Progresso</h1>
         </header>
+        {bodyWeightSection}
         <EmptyState
           icon="📈"
-          title="Sem dados ainda"
+          title="Sem dados de treino ainda"
           description="Termine o primeiro treino e os gráficos de volume, frequência e evolução de carga aparecem aqui."
         />
       </div>
@@ -130,6 +172,8 @@ export default function Stats() {
           ))}
         </div>
       </header>
+
+      {bodyWeightSection}
 
       <Section title={`Este ${config.unit}`}>
         <div className="grid grid-cols-3 gap-2">

@@ -20,11 +20,12 @@ export type MuscleGroup = (typeof MUSCLE_GROUPS)[number]
 export const DEFAULT_REST_SECONDS = 90
 
 /**
- * Dupla progressao: quando as repeticoes batem o teto em TODAS as series, a
- * carga sobe e as repeticoes voltam a cair sozinhas. Assim sempre existe para
- * onde progredir, mesmo quando subir peso ficou dificil.
+ * Dupla progressao dentro de uma faixa: entre o piso e o teto de repeticoes,
+ * so as reps sobem sozinhas. Bater o teto em TODAS as series sugere subir a
+ * carga; cair abaixo do piso em qualquer serie sugere baixar.
  */
 export const DEFAULT_REP_CEILING = 15
+export const DEFAULT_REP_FLOOR = 8
 
 /** Menor salto de carga que voce consegue executar naquele aparelho. */
 export const DEFAULT_WEIGHT_INCREMENT = 1
@@ -39,9 +40,11 @@ export interface Exercise {
   /** Chave do blob local em IndexedDB — a foto funciona offline por aqui. */
   photo_local_key: string | null
   default_rest_seconds: number
-  /** Teto de repeticoes: ao bater em todas as series, o app sugere subir a carga. */
+  /** Piso da faixa de reps: cair abaixo dele sugere baixar a carga. */
+  rep_floor: number
+  /** Teto da faixa de reps: ao bater em todas as series, o app sugere subir a carga. */
   rep_ceiling: number
-  /** Quanto somar na carga quando a sugestao dispara. */
+  /** Quanto somar ou tirar da carga quando uma sugestao dispara. */
   weight_increment: number
   notes: string | null
   archived: boolean
@@ -129,7 +132,23 @@ export interface ActiveItem {
   rest_seconds: number
 }
 
-export type SyncTable = 'exercises' | 'routines' | 'routine_exercises' | 'sessions' | 'set_logs'
+/** Peso corporal, registrado no maximo uma vez por semana (lembrete no Inicio). */
+export interface BodyWeightLog {
+  id: ID
+  user_id: string | null
+  weight_kg: number
+  /** Data (YYYY-MM-DD) que a medida representa. */
+  logged_at: string
+  updated_at: string
+}
+
+export type SyncTable =
+  | 'exercises'
+  | 'routines'
+  | 'routine_exercises'
+  | 'sessions'
+  | 'set_logs'
+  | 'body_weight_logs'
 
 export interface OutboxEntry {
   seq?: number

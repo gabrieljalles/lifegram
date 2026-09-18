@@ -217,6 +217,7 @@ function RoutineItem({
         <NumberField
           label="Carga kg"
           value={entry.target_weight}
+          min={-1000}
           step={2.5}
           onChange={(value) => onUpdate({ target_weight: value })}
         />

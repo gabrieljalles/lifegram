@@ -4,21 +4,47 @@ import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Heatmap from '../components/Heatmap'
 import { Button, Card, Delta, EmptyState, Section, StatTile } from '../components/ui'
-import { bucketize, computeStreak, formatVolume, heatmapDays, periodDelta } from '../lib/stats'
+import { putBodyWeightLog } from '../lib/db'
+import {
+  bucketize,
+  computeStreak,
+  formatVolume,
+  formatWeight,
+  heatmapDays,
+  parseLocalDate,
+  periodDelta,
+  weekKeyOf,
+} from '../lib/stats'
 import { useApp } from '../lib/store'
 import { unlockAudio } from '../lib/timer'
 import { seedStarterData, startWorkout } from '../lib/workout'
-import type { Routine } from '../lib/types'
+import { newId, nowISO, type Routine } from '../lib/types'
 
 export default function Home() {
   const navigate = useNavigate()
-  const { routines, routineExercises, sessions, setLogs, active, reload, setActive, syncStatus } =
-    useApp()
+  const {
+    routines,
+    routineExercises,
+    sessions,
+    setLogs,
+    bodyWeightLogs,
+    active,
+    reload,
+    setActive,
+    syncStatus,
+  } = useApp()
   const [busy, setBusy] = useState(false)
 
   const streak = useMemo(() => computeStreak(sessions), [sessions])
   const heat = useMemo(() => heatmapDays(sessions, setLogs), [sessions, setLogs])
   const weeks = useMemo(() => bucketize(sessions, setLogs, 'week', 2), [sessions, setLogs])
+
+  /** So aparece o lembrete se ainda nao registrou peso na semana atual (seg-dom). */
+  const loggedWeightThisWeek = useMemo(() => {
+    const thisWeek = weekKeyOf(new Date())
+    return bodyWeightLogs.some((log) => weekKeyOf(parseLocalDate(log.logged_at)) === thisWeek)
+  }, [bodyWeightLogs])
+  const lastWeightLog = bodyWeightLogs[bodyWeightLogs.length - 1] ?? null
 
   const thisWeek = weeks[weeks.length - 1]
   const volumeDelta = periodDelta(weeks, 'volume')
@@ -111,6 +137,10 @@ export default function Home() {
             </Button>
           </Card>
         </div>
+      )}
+
+      {!loggedWeightThisWeek && (
+        <WeeklyWeightCard lastLog={lastWeightLog} onSaved={reload} />
       )}
 
       {routines.length === 0 ? (
@@ -226,5 +256,66 @@ export default function Home() {
         </Card>
       </Section>
     </div>
+  )
+}
+
+/**
+ * Lembrete semanal de peso corporal. So e renderizado pela tela quando ainda
+ * nao existe registro na semana atual — some sozinho ao salvar e so volta a
+ * aparecer na semana seguinte (segunda a domingo).
+ */
+function WeeklyWeightCard({
+  lastLog,
+  onSaved,
+}: {
+  lastLog: { weight_kg: number; logged_at: string } | null
+  onSaved: () => Promise<void>
+}) {
+  const [value, setValue] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const save = async () => {
+    const parsed = Number.parseFloat(value.replace(',', '.'))
+    if (!Number.isFinite(parsed) || parsed <= 0 || busy) return
+    setBusy(true)
+    try {
+      await putBodyWeightLog({
+        id: newId(),
+        user_id: null,
+        weight_kg: Math.round(parsed * 10) / 10,
+        // Data local (nao UTC): perto da meia-noite, o dia calendario local e
+        // o que importa para saber em que semana o registro cai.
+        logged_at: format(new Date(), 'yyyy-MM-dd'),
+        updated_at: nowISO(),
+      })
+      await onSaved()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Section title="Peso corporal">
+      <Card className="p-4">
+        <p className="text-sm leading-relaxed text-ink-300">
+          {lastLog
+            ? `Última medida: ${formatWeight(lastLog.weight_kg)} kg em ${format(parseLocalDate(lastLog.logged_at), "d 'de' MMM", { locale: ptBR })}. Registre a desta semana.`
+            : 'Registre seu peso desta semana — uma vez por semana já basta para acompanhar a tendência.'}
+        </p>
+        <div className="mt-3 flex gap-2">
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder="kg"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            className="w-24 rounded-xl border border-ink-700 bg-ink-800 px-3 py-2.5 text-center text-sm outline-none focus:border-brand-500"
+          />
+          <Button className="flex-1" onClick={() => void save()} disabled={busy || !value}>
+            Salvar peso
+          </Button>
+        </div>
+      </Card>
+    </Section>
   )
 }

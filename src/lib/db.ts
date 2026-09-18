@@ -1,6 +1,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type {
   ActiveWorkout,
+  BodyWeightLog,
   Exercise,
   ID,
   OutboxEntry,
@@ -26,6 +27,7 @@ interface WorkoutDB extends DBSchema {
     value: SetLog
     indexes: { by_session: ID; by_exercise: ID; by_completed: string }
   }
+  body_weight_logs: { key: ID; value: BodyWeightLog; indexes: { by_logged_at: string } }
   /** Fila de sincronizacao: o que ainda nao subiu para o Supabase. */
   outbox: { key: number; value: OutboxEntry }
   /** Fotos como blob, garantindo imagem no exercicio mesmo offline. */
@@ -35,32 +37,39 @@ interface WorkoutDB extends DBSchema {
 }
 
 const DB_NAME = 'workout'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let dbPromise: Promise<IDBPDatabase<WorkoutDB>> | null = null
 
 export function db(): Promise<IDBPDatabase<WorkoutDB>> {
   if (!dbPromise) {
     dbPromise = openDB<WorkoutDB>(DB_NAME, DB_VERSION, {
-      upgrade(database) {
-        database.createObjectStore('exercises', { keyPath: 'id' })
-        database.createObjectStore('routines', { keyPath: 'id' })
+      upgrade(database, oldVersion) {
+        if (oldVersion < 1) {
+          database.createObjectStore('exercises', { keyPath: 'id' })
+          database.createObjectStore('routines', { keyPath: 'id' })
 
-        const re = database.createObjectStore('routine_exercises', { keyPath: 'id' })
-        re.createIndex('by_routine', 'routine_id')
-        re.createIndex('by_exercise', 'exercise_id')
+          const re = database.createObjectStore('routine_exercises', { keyPath: 'id' })
+          re.createIndex('by_routine', 'routine_id')
+          re.createIndex('by_exercise', 'exercise_id')
 
-        const sessions = database.createObjectStore('sessions', { keyPath: 'id' })
-        sessions.createIndex('by_started', 'started_at')
+          const sessions = database.createObjectStore('sessions', { keyPath: 'id' })
+          sessions.createIndex('by_started', 'started_at')
 
-        const logs = database.createObjectStore('set_logs', { keyPath: 'id' })
-        logs.createIndex('by_session', 'session_id')
-        logs.createIndex('by_exercise', 'exercise_id')
-        logs.createIndex('by_completed', 'completed_at')
+          const logs = database.createObjectStore('set_logs', { keyPath: 'id' })
+          logs.createIndex('by_session', 'session_id')
+          logs.createIndex('by_exercise', 'exercise_id')
+          logs.createIndex('by_completed', 'completed_at')
 
-        database.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true })
-        database.createObjectStore('photos')
-        database.createObjectStore('meta')
+          database.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true })
+          database.createObjectStore('photos')
+          database.createObjectStore('meta')
+        }
+
+        if (oldVersion < 2) {
+          const bw = database.createObjectStore('body_weight_logs', { keyPath: 'id' })
+          bw.createIndex('by_logged_at', 'logged_at')
+        }
       },
     })
   }
@@ -196,6 +205,19 @@ export async function setLogsOfExercise(exercise_id: ID): Promise<SetLog[]> {
   return rows.sort((a, b) => a.completed_at.localeCompare(b.completed_at))
 }
 
+/* -------------------------------------------------------- peso corporal */
+
+export async function putBodyWeightLog(log: BodyWeightLog, { sync = true } = {}) {
+  const database = await db()
+  await database.put('body_weight_logs', log)
+  if (sync) await enqueue('body_weight_logs', log.id)
+}
+
+export async function allBodyWeightLogs(): Promise<BodyWeightLog[]> {
+  const rows = await (await db()).getAll('body_weight_logs')
+  return rows.sort((a, b) => a.logged_at.localeCompare(b.logged_at))
+}
+
 /* ----------------------------------------------------------------- meta */
 
 export async function metaGet<T>(key: string): Promise<T | undefined> {
@@ -245,17 +267,20 @@ export interface Backup {
   routine_exercises: RoutineExercise[]
   sessions: Session[]
   set_logs: SetLog[]
+  body_weight_logs: BodyWeightLog[]
 }
 
 export async function exportBackup(): Promise<Backup> {
   const database = await db()
-  const [exercises, routines, routine_exercises, sessions, set_logs] = await Promise.all([
-    database.getAll('exercises'),
-    database.getAll('routines'),
-    database.getAll('routine_exercises'),
-    database.getAll('sessions'),
-    database.getAll('set_logs'),
-  ])
+  const [exercises, routines, routine_exercises, sessions, set_logs, body_weight_logs] =
+    await Promise.all([
+      database.getAll('exercises'),
+      database.getAll('routines'),
+      database.getAll('routine_exercises'),
+      database.getAll('sessions'),
+      database.getAll('set_logs'),
+      database.getAll('body_weight_logs'),
+    ])
   return {
     version: 1,
     exported_at: nowISO(),
@@ -264,6 +289,7 @@ export async function exportBackup(): Promise<Backup> {
     routine_exercises,
     sessions,
     set_logs,
+    body_weight_logs,
   }
 }
 
@@ -271,7 +297,14 @@ export async function exportBackup(): Promise<Backup> {
 export async function importBackup(backup: Backup): Promise<number> {
   const database = await db()
   let applied = 0
-  const tables: SyncTable[] = ['exercises', 'routines', 'routine_exercises', 'sessions', 'set_logs']
+  const tables: SyncTable[] = [
+    'exercises',
+    'routines',
+    'routine_exercises',
+    'sessions',
+    'set_logs',
+    'body_weight_logs',
+  ]
   for (const table of tables) {
     const rows = (backup[table] ?? []) as Array<{ id: ID; updated_at: string }>
     for (const row of rows) {

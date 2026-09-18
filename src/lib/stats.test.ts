@@ -8,13 +8,15 @@ import {
   epley1RM,
   formatClock,
   linearTrend,
+  parseLocalDate,
   periodDelta,
-  suggestLoadIncrease,
+  suggestProgression,
   summarizeExercise,
   timeBreakdown,
   totalVolume,
+  weekKeyOf,
 } from './stats'
-import type { Session, SetLog } from './types'
+import type { Exercise, Session, SetLog } from './types'
 
 const iso = (day: string) => `${day}T10:00:00.000Z`
 
@@ -59,6 +61,11 @@ describe('volume e 1RM', () => {
     expect(epley1RM(60, 10)).toBeCloseTo(80, 6)
     expect(epley1RM(0, 10)).toBe(0)
     expect(epley1RM(60, 0)).toBe(0)
+  })
+
+  it('aceita carga negativa (maquinas assistidas)', () => {
+    expect(epley1RM(-20, 1)).toBe(-20)
+    expect(epley1RM(-30, 10)).toBeCloseTo(-40, 6)
   })
 })
 
@@ -174,6 +181,19 @@ describe('checkPR', () => {
 
   it('ignora series sem carga ou sem reps', () => {
     expect(checkPR({ weight: 0, reps: 10 }, []).is_pr_weight).toBe(false)
+  })
+
+  it('reconhece recorde com carga negativa (maquina assistida)', () => {
+    const assistHistory = [{ weight: -20, reps: 10 }]
+    // menos assistencia (-15 > -20) e uma melhora, mesmo negativa
+    const check = checkPR({ weight: -15, reps: 10 }, assistHistory)
+    expect(check.is_pr_weight).toBe(true)
+  })
+
+  it('primeira vez com carga negativa tambem conta como recorde', () => {
+    const check = checkPR({ weight: -20, reps: 10 }, [])
+    expect(check.is_pr_weight).toBe(true)
+    expect(check.is_pr_volume).toBe(true)
   })
 })
 
@@ -299,63 +319,93 @@ describe('bestSet', () => {
   })
 })
 
-describe('suggestLoadIncrease', () => {
-  const teto = 15
-  const incremento = 1
-
-  it('sugere subir quando bateu o teto em todas as séries', () => {
-    const s = suggestLoadIncrease(
-      [
-        { weight: 20, reps: 15 },
-        { weight: 20, reps: 16 },
-        { weight: 20, reps: 15 },
-      ],
-      teto,
-      incremento,
-    )
-    expect(s?.weight).toBe(21)
-    expect(s?.from).toBe(20)
-    expect(s?.sets).toBe(3)
+describe('suggestProgression', () => {
+  const cfg = (
+    over: Partial<Pick<Exercise, 'rep_floor' | 'rep_ceiling' | 'weight_increment' | 'muscle_group'>> = {},
+  ): Pick<Exercise, 'rep_floor' | 'rep_ceiling' | 'weight_increment' | 'muscle_group'> => ({
+    rep_floor: 8,
+    rep_ceiling: 12,
+    weight_increment: 2.5,
+    muscle_group: 'peito',
+    ...over,
   })
 
-  it('não sugere se uma única série ficou abaixo do teto', () => {
-    const s = suggestLoadIncrease(
-      [
-        { weight: 20, reps: 15 },
-        { weight: 20, reps: 15 },
-        { weight: 20, reps: 9 },
-      ],
-      teto,
-      incremento,
-    )
-    expect(s).toBeNull()
-  })
-
-  it('respeita teto e incremento próprios do exercício', () => {
-    const sets = [
-      { weight: 60, reps: 12 },
-      { weight: 60, reps: 12 },
+  it('sugere subir quando bateu o teto em todas as séries da última sessão', () => {
+    const logs = [
+      log({ day: '2026-01-05', weight: 40, reps: 10, set_number: 1 }),
+      log({ day: '2026-01-12', weight: 40, reps: 13, set_number: 1 }),
+      log({ day: '2026-01-12', weight: 40, reps: 12, set_number: 2 }),
     ]
-    expect(suggestLoadIncrease(sets, 12, 2.5)?.weight).toBe(62.5)
-    expect(suggestLoadIncrease(sets, 15, 2.5)).toBeNull()
+    const s = suggestProgression(logs, cfg())
+    expect(s?.action).toBe('increase')
+    expect(s?.weight).toBe(42.5)
+    expect(s?.from).toBe(40)
   })
 
-  it('usa a maior carga da sessão como base', () => {
-    const s = suggestLoadIncrease(
-      [
-        { weight: 20, reps: 15 },
-        { weight: 22, reps: 15 },
-      ],
-      teto,
-      incremento,
-    )
-    expect(s?.weight).toBe(23)
+  it('sugere baixar quando alguma série cai abaixo do piso', () => {
+    const logs = [
+      log({ day: '2026-01-05', weight: 40, reps: 10, set_number: 1, session_id: 's1' }),
+      log({ day: '2026-01-05', weight: 40, reps: 6, set_number: 2, session_id: 's1' }),
+    ]
+    const s = suggestProgression(logs, cfg())
+    expect(s?.action).toBe('decrease')
+    expect(s?.weight).toBe(37.5)
+    expect(s?.from).toBe(40)
   })
 
-  it('sem séries ou com parâmetros inválidos não sugere nada', () => {
-    expect(suggestLoadIncrease([], teto, incremento)).toBeNull()
-    expect(suggestLoadIncrease([{ weight: 20, reps: 15 }], 0, incremento)).toBeNull()
-    expect(suggestLoadIncrease([{ weight: 20, reps: 15 }], teto, 0)).toBeNull()
+  it('dentro da faixa, sem sessões suficientes, não sugere nada', () => {
+    const logs = [
+      log({ day: '2026-01-05', weight: 40, reps: 10 }),
+      log({ day: '2026-01-12', weight: 40, reps: 10 }),
+    ]
+    expect(suggestProgression(logs, cfg())).toBeNull()
+  })
+
+  it('sugere deload quando o 1RM estimado estagna por várias sessões dentro da faixa', () => {
+    const days = ['2026-01-05', '2026-01-12', '2026-01-19', '2026-01-26', '2026-02-02']
+    const logs = days.map((day) => log({ day, weight: 40, reps: 10 }))
+    const s = suggestProgression(logs, cfg())
+    expect(s?.action).toBe('deload')
+    expect(s?.from).toBe(40)
+    expect(s?.weight).toBe(35)
+  })
+
+  it('cardio nunca recebe sugestão', () => {
+    const logs = [log({ day: '2026-01-05', weight: 40, reps: 20 })]
+    expect(suggestProgression(logs, cfg({ muscle_group: 'cardio' }))).toBeNull()
+  })
+
+  it('sem histórico ou com parâmetros inválidos não sugere nada', () => {
+    expect(suggestProgression([], cfg())).toBeNull()
+    const logs = [log({ day: '2026-01-05', weight: 40, reps: 10 })]
+    expect(suggestProgression(logs, cfg({ weight_increment: 0 }))).toBeNull()
+    expect(suggestProgression(logs, cfg({ rep_floor: 12, rep_ceiling: 8 }))).toBeNull()
+  })
+})
+
+describe('weekKeyOf', () => {
+  it('datas na mesma semana (segunda a domingo) têm a mesma chave', () => {
+    const monday = weekKeyOf(new Date('2026-03-09T08:00:00'))
+    const friday = weekKeyOf(new Date('2026-03-13T20:00:00'))
+    const sunday = weekKeyOf(new Date('2026-03-15T23:00:00'))
+    expect(friday).toBe(monday)
+    expect(sunday).toBe(monday)
+  })
+
+  it('a semana seguinte tem uma chave diferente', () => {
+    const thisWeek = weekKeyOf(new Date('2026-03-09T08:00:00'))
+    const nextWeek = weekKeyOf(new Date('2026-03-16T08:00:00'))
+    expect(nextWeek).not.toBe(thisWeek)
+  })
+})
+
+describe('parseLocalDate', () => {
+  it('mantem o dia calendario independente do fuso, ao contrario de parseISO puro', () => {
+    const date = parseLocalDate('2026-03-09')
+    expect(date.getFullYear()).toBe(2026)
+    expect(date.getMonth()).toBe(2)
+    expect(date.getDate()).toBe(9)
+    expect(date.getHours()).toBe(0)
   })
 })
 

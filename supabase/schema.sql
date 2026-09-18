@@ -13,8 +13,9 @@ create table if not exists public.exercises (
   muscle_group         text not null default 'outro',
   photo_url            text,
   default_rest_seconds integer not null default 90,
-  -- Dupla progressao: teto de reps que dispara a sugestao de subir a carga,
-  -- e o menor salto de peso executavel naquele equipamento.
+  -- Dupla progressao por faixa: piso e teto de reps que disparam a sugestao
+  -- de baixar/subir a carga, e o menor salto de peso executavel no equipamento.
+  rep_floor            integer not null default 8,
   rep_ceiling          integer not null default 15,
   weight_increment     numeric not null default 1,
   notes                text,
@@ -70,6 +71,16 @@ create table if not exists public.set_logs (
   updated_at          timestamptz not null default now()
 );
 
+-- Peso corporal: no maximo um registro por semana no app, mas a tabela
+-- aceita qualquer numero de linhas (correcoes tambem sao linhas novas).
+create table if not exists public.body_weight_logs (
+  id         uuid primary key,
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  weight_kg  numeric not null,
+  logged_at  date not null,
+  updated_at timestamptz not null default now()
+);
+
 -- ---------------------------------------------------------------- indices
 -- O pull do cliente e sempre "o que mudou depois de X", entao updated_at e o
 -- indice que realmente importa.
@@ -82,6 +93,7 @@ create index if not exists sessions_user_updated_idx on public.sessions (user_id
 create index if not exists set_logs_user_updated_idx on public.set_logs (user_id, updated_at);
 create index if not exists set_logs_exercise_idx on public.set_logs (exercise_id, completed_at);
 create index if not exists set_logs_session_idx on public.set_logs (session_id);
+create index if not exists body_weight_logs_user_updated_idx on public.body_weight_logs (user_id, updated_at);
 
 -- -------------------------------------------------------------------- RLS
 
@@ -90,6 +102,7 @@ alter table public.routines enable row level security;
 alter table public.routine_exercises enable row level security;
 alter table public.sessions enable row level security;
 alter table public.set_logs enable row level security;
+alter table public.body_weight_logs enable row level security;
 
 drop policy if exists exercises_owner on public.exercises;
 create policy exercises_owner on public.exercises
@@ -105,6 +118,10 @@ create policy sessions_owner on public.sessions
 
 drop policy if exists set_logs_owner on public.set_logs;
 create policy set_logs_owner on public.set_logs
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists body_weight_logs_owner on public.body_weight_logs;
+create policy body_weight_logs_owner on public.body_weight_logs
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- routine_exercises nao tem user_id: a dona e a rotina pai.

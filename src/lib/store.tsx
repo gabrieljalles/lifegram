@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  allBodyWeightLogs,
   allExercises,
   allRoutineExercises,
   allRoutines,
@@ -21,6 +22,7 @@ import { isSupabaseConfigured, supabase } from './supabase'
 import { startAutoSync, sync, type SyncResult } from './sync'
 import type {
   ActiveWorkout,
+  BodyWeightLog,
   Exercise,
   ID,
   Routine,
@@ -38,6 +40,7 @@ interface AppState {
   routineExercises: RoutineExercise[]
   sessions: Session[]
   setLogs: SetLog[]
+  bodyWeightLogs: BodyWeightLog[]
   active: ActiveWorkout | null
   exerciseById: Map<ID, Exercise>
   logsByExercise: Map<ID, SetLog[]>
@@ -58,6 +61,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [routineExercises, setRoutineExercises] = useState<RoutineExercise[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [setLogs, setSetLogs] = useState<SetLog[]>([])
+  const [bodyWeightLogs, setBodyWeightLogs] = useState<BodyWeightLog[]>([])
   const [active, setActiveState] = useState<ActiveWorkout | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
@@ -66,12 +70,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const reload = useCallback(async () => {
-    const [ex, rt, rex, ses, logs, act, pending] = await Promise.all([
+    const [ex, rt, rex, ses, logs, bw, act, pending] = await Promise.all([
       allExercises(),
       allRoutines(),
       allRoutineExercises(),
       allSessions(),
       allSetLogs(),
+      allBodyWeightLogs(),
       getActiveWorkout(),
       outboxCount(),
     ])
@@ -80,6 +85,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setRoutineExercises(rex)
     setSessions(ses)
     setSetLogs(logs)
+    setBodyWeightLogs(bw)
     setActiveState(act ?? null)
     setPendingCount(pending)
     setReady(true)
@@ -159,6 +165,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     routineExercises,
     sessions,
     setLogs,
+    bodyWeightLogs,
     active,
     exerciseById,
     logsByExercise,

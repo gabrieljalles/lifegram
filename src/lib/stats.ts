@@ -9,7 +9,7 @@ import {
   startOfYear,
   subDays,
 } from 'date-fns'
-import type { Session, SetLog } from './types'
+import type { Exercise, Session, SetLog } from './types'
 
 /* --------------------------------------------------------- fundamentais */
 
@@ -25,7 +25,7 @@ export const totalVolume = (logs: Array<Pick<SetLog, 'reps' | 'weight'>>): numbe
  * numa unica escala de forca.
  */
 export function epley1RM(weight: number, reps: number): number {
-  if (weight <= 0 || reps <= 0) return 0
+  if (weight === 0 || reps <= 0) return 0
   if (reps === 1) return weight
   return weight * (1 + reps / 30)
 }
@@ -102,6 +102,8 @@ export interface ExerciseSessionPoint {
   volume: number
   sets: number
   reps: number
+  /** Menor numero de reps entre as series — base da dupla progressao por faixa. */
+  minReps: number
 }
 
 /** Colapsa as series de um exercicio em um ponto por sessao (ou por dia). */
@@ -124,6 +126,7 @@ export function exerciseSessionPoints(logs: SetLog[]): ExerciseSessionPoint[] {
       volume: totalVolume(group),
       sets: group.length,
       reps: group.reduce((sum, l) => sum + l.reps, 0),
+      minReps: Math.min(...group.map((l) => l.reps)),
     })
   }
   return points.sort((a, b) => a.date.getTime() - b.date.getTime())
@@ -234,38 +237,89 @@ export function bestSet<T extends Pick<SetLog, 'reps' | 'weight'>>(sets: T[]): T
 
 /* ------------------------------------------------------ dupla progressao */
 
-export interface LoadSuggestion {
+export interface ProgressionSuggestion {
+  action: 'increase' | 'decrease' | 'deload'
   /** Carga sugerida para a proxima vez. */
   weight: number
   /** Carga de topo da sessao que disparou a sugestao. */
   from: number
-  ceiling: number
-  sets: number
+  /** Texto pronto em pt-BR explicando o motivo da sugestao. */
+  reason: string
 }
 
-/**
- * Sugere subir a carga quando voce bateu o teto de repeticoes em TODAS as
- * series da ultima sessao.
- *
- * A exigencia de "todas" e o que torna a sugestao confiavel: bater 15 na
- * primeira serie e 9 na ultima significa que a primeira estava leve, nao que
- * a carga inteira ficou pequena.
- */
-export function suggestLoadIncrease(
-  sets: Array<Pick<SetLog, 'reps' | 'weight'>>,
-  ceiling: number,
-  increment: number,
-): LoadSuggestion | null {
-  if (sets.length === 0 || ceiling <= 0 || increment <= 0) return null
-  if (!sets.every((set) => set.reps >= ceiling)) return null
+/** Sessoes usadas para julgar se o 1RM estimado estagnou (plato). */
+const DELOAD_WINDOW_SESSIONS = 5
+/** Minimo de sessoes na janela para a tendencia de plato nao ser so ruido. */
+const DELOAD_MIN_SESSIONS = 4
 
-  const from = Math.max(...sets.map((set) => set.weight))
-  return {
-    weight: Math.round((from + increment) * 10) / 10,
-    from,
-    ceiling,
-    sets: sets.length,
+/**
+ * Recomendacao de carga por dupla progressao numa faixa de repeticoes —
+ * nunca aplica a mudanca sozinha, so sugere. Trabalha sobre a ultima sessao
+ * do exercicio (e, para o plato, sobre a tendencia das ultimas sessoes):
+ *
+ * 1. Cardio nao progride por carga.
+ * 2. Caiu abaixo do piso da faixa em alguma serie -> carga pesada demais,
+ *    sugere baixar (regra classica de dupla progressao: se nem o minimo da
+ *    faixa foi cumprido, o estimulo pretendido nao foi atingido).
+ * 3. Bateu o teto da faixa em TODAS as series -> sugere subir, como antes.
+ * 4. Nenhum dos dois, mas o 1RM estimado das ultimas sessoes esta estagnado
+ *    ou caindo -> sugere um treino mais leve (deload), pratica usual em
+ *    periodizacao/autorregulacao para destravar plato.
+ *
+ * O recuo do deload e sempre aditivo em unidades de `increment` (nunca um
+ * percentual multiplicado direto na carga): numa carga assistida negativa,
+ * "mais facil" significa um numero mais negativo, e multiplicar por 0,9
+ * andaria na direcao errada. Somar/subtrair increments funciona igual nos
+ * dois sentidos da escala.
+ */
+export function suggestProgression(
+  logs: SetLog[],
+  exercise: Pick<Exercise, 'rep_floor' | 'rep_ceiling' | 'weight_increment' | 'muscle_group'>,
+): ProgressionSuggestion | null {
+  if (exercise.muscle_group === 'cardio') return null
+
+  const floor = exercise.rep_floor
+  const ceiling = exercise.rep_ceiling
+  const increment = exercise.weight_increment
+  if (floor <= 0 || ceiling <= 0 || increment <= 0 || floor >= ceiling) return null
+
+  const points = exerciseSessionPoints(logs)
+  if (points.length === 0) return null
+  const last = points[points.length - 1]
+
+  if (last.minReps < floor) {
+    return {
+      action: 'decrease',
+      weight: Math.round((last.topWeight - increment) * 10) / 10,
+      from: last.topWeight,
+      reason: `Na última vez você fez ${last.minReps} repetições — abaixo do piso de ${floor}. Baixar a carga ajuda a voltar para a faixa.`,
+    }
   }
+
+  if (last.minReps >= ceiling) {
+    return {
+      action: 'increase',
+      weight: Math.round((last.topWeight + increment) * 10) / 10,
+      from: last.topWeight,
+      reason: `Na última vez você bateu ${ceiling}+ repetições em todas as séries. Subir a carga mantém o estímulo.`,
+    }
+  }
+
+  const window = points.slice(-DELOAD_WINDOW_SESSIONS)
+  if (window.length >= DELOAD_MIN_SESSIONS) {
+    const trend = linearTrend(window.map((p) => ({ date: p.date, value: p.bestE1RM })))
+    if (trend.reliable && trend.perMonth <= 0) {
+      const steps = Math.max(1, Math.round((Math.abs(last.topWeight) * 0.1) / increment))
+      return {
+        action: 'deload',
+        weight: Math.round((last.topWeight - increment * steps) * 10) / 10,
+        from: last.topWeight,
+        reason: `Sem progresso nas últimas ${window.length} sessões. Um treino mais leve pode ajudar a destravar.`,
+      }
+    }
+  }
+
+  return null
 }
 
 /* ---------------------------------------------------- tempo de treino */
@@ -331,11 +385,12 @@ export function checkPR(
   candidate: Pick<SetLog, 'reps' | 'weight'>,
   history: Array<Pick<SetLog, 'reps' | 'weight'>>,
 ): PRCheck {
-  if (candidate.weight <= 0 || candidate.reps <= 0) {
+  if (candidate.weight === 0 || candidate.reps <= 0) {
     return { is_pr_weight: false, is_pr_volume: false }
   }
-  const bestWeight = history.length ? Math.max(...history.map((l) => l.weight)) : 0
-  const bestVolume = history.length ? Math.max(...history.map(setVolume)) : 0
+  // -Infinity (nao 0): carga assistida (negativa) tambem precisa contar como recorde na primeira vez.
+  const bestWeight = history.length ? Math.max(...history.map((l) => l.weight)) : -Infinity
+  const bestVolume = history.length ? Math.max(...history.map(setVolume)) : -Infinity
   return {
     is_pr_weight: candidate.weight > bestWeight,
     is_pr_volume: setVolume(candidate) > bestVolume,
@@ -459,6 +514,23 @@ const bucketStart = (date: Date, period: Period): Date => {
   if (period === 'month') return startOfMonth(date)
   return startOfYear(date)
 }
+
+/**
+ * Chave da semana (segunda a domingo) que a data pertence, no formato
+ * YYYY-MM-DD. Duas datas na mesma semana sempre devolvem a mesma chave —
+ * base do lembrete semanal de peso corporal.
+ */
+export const weekKeyOf = (date: Date): string =>
+  format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+
+/**
+ * Interpreta uma data "solta" (YYYY-MM-DD, sem hora) como meia-noite LOCAL,
+ * nao UTC. `parseISO('2026-03-09')` sozinho cairia em meia-noite UTC, que em
+ * fusos negativos (Brasil, UTC-3) representa a noite do dia anterior — um
+ * problema justamente para virada de semana/dia. Usado pelo peso corporal,
+ * que so guarda a data (`logged_at`), nunca hora.
+ */
+export const parseLocalDate = (yyyyMMdd: string): Date => parseISO(`${yyyyMMdd}T00:00:00`)
 
 const bucketLabel = (date: Date, period: Period): string => {
   if (period === 'week') return format(date, 'dd/MM')
