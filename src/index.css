@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink-950: #070a10;
+  --color-ink-900: #0b0f17;
+  --color-ink-850: #111823;
+  --color-ink-800: #161f2d;
+  --color-ink-700: #1f2b3d;
+  --color-ink-600: #2c3b53;
+  --color-ink-400: #64748b;
+  --color-ink-300: #94a3b8;
+  --color-ink-100: #e2e8f0;
+  --color-ink-50: #f5f8fc;
+
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+
+  --color-go-400: #4ade80;
+  --color-go-500: #22c55e;
+  --color-go-600: #16a34a;
+
+  --color-fire-400: #fb923c;
+  --color-fire-500: #f97316;
+  --color-fire-600: #ea580c;
+
+  --color-pr-400: #fbbf24;
+  --color-pr-500: #f59e0b;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ink-900);
+  color: var(--color-ink-100);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+/* Numeros grandes de carga/reps: tabulares para nao "dancar" ao mudar */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Area segura para o iPhone (notch / barra inferior) */
+.safe-b { padding-bottom: max(env(safe-area-inset-bottom), 0.5rem); }
+.safe-t { padding-top: max(env(safe-area-inset-top), 0.5rem); }
+
+button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
+
+@keyframes pop-in {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-pop-in { animation: pop-in 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+@keyframes rise {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-rise { animation: rise 320ms ease-out both; }
+
+@keyframes pulse-ring {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.animate-pulse-ring { animation: pulse-ring 1s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop-in, .animate-rise, .animate-pulse-ring { animation: none; }
+}

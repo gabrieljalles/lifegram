@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Workout">
+  <rect width="512" height="512" rx="112" fill="#0b0f17" />
+  <g stroke="#4f46e5" stroke-width="30" stroke-linecap="round" fill="none">
+    <path d="M128 176v160M384 176v160" />
+    <path d="M86 216v80M426 216v80" />
+    <path d="M128 256h256" />
+  </g>
+  <path d="M256 104l26 54 60 8-44 42 11 59-53-28-53 28 11-59-44-42 60-8z" fill="#22c55e" opacity="0" />
+</svg>
