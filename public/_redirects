@@ -1,3 +1,0 @@
-# SPA: qualquer rota cai no index.html e o React Router resolve.
-# Sem isso, abrir /stats direto ou dar refresh em /treino devolve 404.
-/*  /index.html  200

@@ -1,0 +1,11 @@
+{
+  "name": "workout",
+  "compatibility_date": "2026-09-18",
+  "assets": {
+    "directory": "./dist/",
+    // SPA: qualquer rota nao encontrada devolve o index.html com 200, para o
+    // React Router assumir. Sem isso, abrir /stats direto ou dar refresh no
+    // meio do treino devolveria 404.
+    "not_found_handling": "single-page-application"
+  }
+}
