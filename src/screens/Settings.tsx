@@ -22,6 +22,7 @@ export default function Settings() {
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [notifyState, setNotifyState] = useState(() => notificationPermission())
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
   const status = STATUS_TEXT[syncStatus] ?? STATUS_TEXT.local
 
@@ -98,6 +99,16 @@ export default function Settings() {
               </Button>
               <p className="text-[11px] text-ink-400">
                 Sem senha: você recebe um link por e-mail e entra com um toque.
+              </p>
+              {/*
+                O link do e-mail so volta para ca se esta URL estiver liberada
+                no Supabase. Fora da lista, ele cai na Site URL — tipicamente
+                localhost — e o login parece quebrado sem explicacao.
+              */}
+              <p className="mt-1 break-all text-[11px] leading-relaxed text-ink-400">
+                O link voltará para{' '}
+                <span className="font-semibold text-ink-300">{origin}</span>. Esta URL precisa estar
+                em Authentication → URL Configuration → Redirect URLs, no painel do Supabase.
               </p>
             </div>
           )}
