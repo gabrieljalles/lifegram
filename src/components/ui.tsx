@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatWeight, type ProgressionSuggestion } from '../lib/stats'
-import type { MuscleGroup } from '../lib/types'
+import { WEEKDAYS, type MuscleGroup, type Weekday } from '../lib/types'
 
 /* ----------------------------------------------------------- cabecalho */
 
@@ -26,7 +26,13 @@ export function Header({
           aria-label="Voltar"
           className="-ml-2 rounded-full p-2 text-ink-300 active:bg-ink-800"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="h-5 w-5"
+          >
             <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
@@ -54,13 +60,25 @@ export function Card({
   const base = `rounded-2xl border border-ink-700 bg-ink-850 ${className}`
   if (!onClick) return <div className={base}>{children}</div>
   return (
-    <button type="button" onClick={onClick} className={`${base} w-full text-left active:bg-ink-800`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${base} w-full text-left active:bg-ink-800`}
+    >
       {children}
     </button>
   )
 }
 
-export function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+export function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string
+  action?: ReactNode
+  children: ReactNode
+}) {
   return (
     <section className="px-4 py-3">
       <div className="mb-2.5 flex items-center justify-between">
@@ -161,7 +179,9 @@ export function EmptyState({
         {icon}
       </div>
       <h3 className="text-base font-semibold">{title}</h3>
-      {description && <p className="max-w-xs text-sm leading-relaxed text-ink-400">{description}</p>}
+      {description && (
+        <p className="max-w-xs text-sm leading-relaxed text-ink-400">{description}</p>
+      )}
       {action}
     </div>
   )
@@ -173,11 +193,13 @@ export function EmptyState({
 export const MUSCLE_ICON: Record<MuscleGroup, string> = {
   peito: '🫀',
   costas: '🔙',
+  trapezio: '🔺',
   pernas: '🦵',
   gluteos: '🍑',
   ombros: '🏔️',
   biceps: '💪',
   triceps: '🔻',
+  antebraco: '✊',
   abdomen: '🧊',
   panturrilha: '🦶',
   cardio: '❤️‍🔥',
@@ -187,11 +209,13 @@ export const MUSCLE_ICON: Record<MuscleGroup, string> = {
 export const MUSCLE_LABEL: Record<MuscleGroup, string> = {
   peito: 'Peito',
   costas: 'Costas',
+  trapezio: 'Trapézio',
   pernas: 'Pernas',
   gluteos: 'Glúteos',
   ombros: 'Ombros',
   biceps: 'Bíceps',
   triceps: 'Tríceps',
+  antebraco: 'Antebraço',
   abdomen: 'Abdômen',
   panturrilha: 'Panturrilha',
   cardio: 'Cardio',
@@ -204,6 +228,61 @@ export function MuscleChip({ group }: { group: MuscleGroup }) {
       <span aria-hidden="true">{MUSCLE_ICON[group]}</span>
       {MUSCLE_LABEL[group]}
     </span>
+  )
+}
+
+/**
+ * Seletor de dias da semana. Sete alvos grandes numa linha so — a tela e de
+ * celular e a escolha precisa caber no polegar sem rolar.
+ */
+export function WeekdayPicker({
+  value,
+  onChange,
+  tone = 'brand',
+  disabled = [],
+}: {
+  value: Weekday[]
+  onChange: (days: Weekday[]) => void
+  tone?: 'brand' | 'calm'
+  /** Dias exibidos apagados (ex.: descanso, quando se escolhe dia de treino). */
+  disabled?: Weekday[]
+}) {
+  const on =
+    tone === 'brand'
+      ? 'border-brand-500 bg-brand-600/20 text-brand-300'
+      : 'border-ink-600 bg-ink-700 text-ink-100'
+
+  const toggle = (day: Weekday) => {
+    onChange(
+      value.includes(day) ? value.filter((d) => d !== day) : [...value, day].sort((a, b) => a - b),
+    )
+  }
+
+  return (
+    <div className="flex gap-1.5">
+      {WEEKDAYS.map((day) => {
+        const active = value.includes(day.value)
+        const muted = disabled.includes(day.value) && !active
+        return (
+          <button
+            key={day.value}
+            type="button"
+            aria-label={day.label}
+            aria-pressed={active}
+            onClick={() => toggle(day.value)}
+            className={`h-10 flex-1 rounded-xl border text-sm font-bold transition ${
+              active
+                ? on
+                : muted
+                  ? 'border-ink-800 bg-ink-850 text-ink-600'
+                  : 'border-ink-700 bg-ink-800 text-ink-400'
+            }`}
+          >
+            <span aria-hidden="true">{day.short}</span>
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -236,6 +315,120 @@ export function ExercisePhoto({
       aria-hidden="true"
     >
       <span className="text-[2.5em] leading-none opacity-70">{MUSCLE_ICON[group]}</span>
+    </div>
+  )
+}
+
+/* --------------------------------------------------------- campo numerico */
+
+/**
+ * Campo numerico com botoes de mais e menos.
+ *
+ * Duas regras aprendidas na pratica, as duas sobre o MOMENTO de validar:
+ *
+ * 1. Enquanto voce digita, o campo e TEXTO livre. Validar a cada tecla fazia o
+ *    valor pular sozinho — apagar para escrever "12" virava "1", e o minimo
+ *    empurrava o maximo no meio da digitacao.
+ * 2. A conta so acontece quando voce sai do campo (ou toca em +/-). Se o que
+ *    ficou la nao for numero, o valor anterior volta em vez de virar zero.
+ *
+ * Os botoes existem porque no celular eles resolvem 90% dos ajustes sem teclado.
+ */
+export function NumberField({
+  label,
+  value,
+  onChange,
+  min = 0,
+  max = 999,
+  step = 1,
+  decimals = false,
+  format,
+}: {
+  label: string
+  value: number
+  onChange: (value: number) => void
+  min?: number
+  max?: number
+  step?: number
+  /** Aceita virgula e meio passo (ex.: salto de carga de 2,5 kg). */
+  decimals?: boolean
+  /** Como mostrar o numero quando o campo nao esta sendo editado. */
+  format?: (value: number) => string
+}) {
+  const show = () => (format ? format(value) : String(value))
+  const [text, setText] = useState(show)
+  const [editing, setEditing] = useState(false)
+
+  // Valor mudou por fora (botao +/-, outro campo ajustando este): reflete.
+  useEffect(() => {
+    if (!editing) setText(show())
+  }, [value, editing])
+
+  const clamp = (n: number) => Math.min(max, Math.max(min, n))
+
+  const commit = (raw: string) => {
+    const parsed = Number.parseFloat(raw.replace(',', '.'))
+    if (!Number.isFinite(parsed)) {
+      setText(show())
+      return
+    }
+    const next = clamp(decimals ? Math.round(parsed * 2) / 2 : Math.round(parsed))
+    onChange(next)
+    setText(format ? format(next) : String(next))
+  }
+
+  const bump = (delta: number) => {
+    const next = clamp(decimals ? Math.round((value + delta) * 2) / 2 : Math.round(value + delta))
+    onChange(next)
+  }
+
+  return (
+    <div className="rounded-xl border border-ink-700 bg-ink-850 p-3">
+      <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+        {label}
+      </span>
+      <div className="mt-1 flex items-center gap-1">
+        <button
+          type="button"
+          aria-label={`Diminuir ${label}`}
+          onClick={() => bump(-step)}
+          disabled={value <= min}
+          className="h-10 w-10 shrink-0 rounded-lg bg-ink-800 text-xl font-bold text-ink-200 active:bg-ink-700 disabled:opacity-30"
+        >
+          −
+        </button>
+        <input
+          // type="text" de proposito: no number, o teclado do celular troca de
+          // layout no meio da digitacao e a rodinha do mouse altera o valor sem
+          // querer. inputMode ja abre o teclado numerico.
+          type="text"
+          inputMode={decimals ? 'decimal' : 'numeric'}
+          value={text}
+          aria-label={label}
+          onFocus={(event) => {
+            setEditing(true)
+            event.target.select()
+          }}
+          onChange={(event) => setText(event.target.value)}
+          onBlur={(event) => {
+            setEditing(false)
+            commit(event.target.value)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+          }}
+          className="tnum min-w-0 flex-1 bg-transparent text-center text-2xl font-bold outline-none"
+        />
+        <button
+          type="button"
+          aria-label={`Aumentar ${label}`}
+          onClick={() => bump(step)}
+          disabled={value >= max}
+          className="h-10 w-10 shrink-0 rounded-lg bg-ink-800 text-xl font-bold text-ink-200 active:bg-ink-700 disabled:opacity-30"
+        >
+          +
+        </button>
+      </div>
     </div>
   )
 }

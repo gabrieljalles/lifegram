@@ -11,6 +11,9 @@ const TABLES: SyncTable[] = [
   'sessions',
   'set_logs',
   'body_weight_logs',
+  'courage_goals',
+  'courage_attempts',
+  'courage_score_changes',
 ]
 
 /** routine_exercises herda a dona pela rotina, entao nao carrega user_id. */
@@ -21,6 +24,9 @@ const HAS_USER_ID: Record<SyncTable, boolean> = {
   sessions: true,
   set_logs: true,
   body_weight_logs: true,
+  courage_goals: true,
+  courage_attempts: true,
+  courage_score_changes: true,
 }
 
 /** Campos que so existem no cliente e nao devem viajar para o Postgres. */
@@ -103,7 +109,10 @@ async function pushOutbox(userId: string): Promise<number> {
     }
 
     if (deletes.size > 0) {
-      const { error } = await supabase!.from(table).delete().in('id', [...deletes])
+      const { error } = await supabase!
+        .from(table)
+        .delete()
+        .in('id', [...deletes])
       if (error) throw error
     }
 
@@ -155,8 +164,7 @@ async function pullAll(userId: string): Promise<number> {
 
     for (const remote of data as Array<Record<string, unknown> & { id: ID; updated_at: string }>) {
       const local = (await database.get(table, remote.id)) as
-        | (Record<string, unknown> & { updated_at: string })
-        | undefined
+        (Record<string, unknown> & { updated_at: string }) | undefined
 
       // Last-write-wins por updated_at. Uso single-user: conflito e raro.
       if (local && local.updated_at >= remote.updated_at) continue

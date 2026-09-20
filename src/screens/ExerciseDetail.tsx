@@ -110,9 +110,7 @@ export default function ExerciseDetail() {
 
           {/* ------------------------------------- o numero que o usuario quer */}
           <Section title="Progresso mensal">
-            <Card
-              className={`p-4 ${trend.reliable ? 'border-brand-500/40 bg-brand-600/10' : ''}`}
-            >
+            <Card className={`p-4 ${trend.reliable ? 'border-brand-500/40 bg-brand-600/10' : ''}`}>
               {trend.reliable ? (
                 <>
                   <div className="flex items-baseline gap-2">
@@ -214,7 +212,11 @@ export default function ExerciseDetail() {
       )}
 
       <div className="px-4 pb-6 pt-2">
-        <Button variant="outline" className="w-full" onClick={() => navigate(`/exercicios/${exercise.id}`)}>
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => navigate(`/exercicios/${exercise.id}`)}
+        >
           Editar exercício
         </Button>
       </div>

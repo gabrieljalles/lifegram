@@ -22,6 +22,7 @@ import type {
   Routine,
   SetLog,
   Session,
+  Weekday,
 } from './types'
 import {
   DEFAULT_REP_CEILING,
@@ -82,6 +83,7 @@ export async function startWorkout(routine: Routine): Promise<ActiveWorkout> {
     rest_total_seconds: items[0].rest_seconds,
     rest_started_at: null,
     pending_rest_seconds: 0,
+    postponed: [],
   }
   await setActiveWorkout(workout)
   return workout
@@ -162,6 +164,45 @@ export async function completeSet(
   return { workout, log, finished, isPR: pr.is_pr_weight || pr.is_pr_volume }
 }
 
+/**
+ * Adia o exercicio atual: ele sai da vez e vai para o fim da fila, sem perder
+ * as series ja feitas. O maquinario ocupado, a fila no aparelho ou a vontade
+ * de deixar para depois nao deveriam custar o exercicio inteiro.
+ *
+ * Devolve null quando nao ha para onde adiar (ja e o ultimo da fila).
+ */
+export async function postponeExercise(active: ActiveWorkout): Promise<ActiveWorkout | null> {
+  if (active.cursor >= active.items.length - 1) return null
+
+  const current = active.items[active.cursor]
+  const items = [
+    ...active.items.slice(0, active.cursor),
+    ...active.items.slice(active.cursor + 1),
+    current,
+  ]
+
+  // O proximo exercicio assume a posicao atual, entao o cursor nao se move —
+  // mas a serie precisa considerar o que ja foi feito nele nesta sessao.
+  const doneSets = await setLogsOfSession(active.session_id)
+  const target = items[active.cursor]
+  const already = doneSets.filter((l) => l.exercise_id === target.exercise_id).length
+
+  const workout: ActiveWorkout = {
+    ...active,
+    items,
+    set_number: Math.min(already + 1, target.target_sets),
+    rest_ends_at: null,
+    rest_total_seconds: target.rest_seconds,
+    rest_started_at: null,
+    pending_rest_seconds: 0,
+    postponed: active.postponed.includes(current.exercise_id)
+      ? active.postponed
+      : [...active.postponed, current.exercise_id],
+  }
+  await setActiveWorkout(workout)
+  return workout
+}
+
 /** Desfaz a ultima serie (erro de digitacao no peso, por exemplo). */
 export async function undoSet(active: ActiveWorkout): Promise<ActiveWorkout | null> {
   const logs = await setLogsOfSession(active.session_id)
@@ -212,25 +253,6 @@ export async function adjustRest(active: ActiveWorkout, deltaSeconds: number) {
   return workout
 }
 
-/** Pula para outro exercicio da fila (quando o aparelho esta ocupado). */
-export async function jumpTo(active: ActiveWorkout, cursor: number): Promise<ActiveWorkout> {
-  const index = Math.max(0, Math.min(cursor, active.items.length - 1))
-  const doneSets = await setLogsOfSession(active.session_id)
-  const target = active.items[index]
-  const already = doneSets.filter((l) => l.exercise_id === target.exercise_id).length
-
-  const workout: ActiveWorkout = {
-    ...active,
-    cursor: index,
-    set_number: Math.min(already + 1, target.target_sets),
-    rest_ends_at: null,
-    rest_total_seconds: target.rest_seconds,
-    rest_started_at: null,
-    pending_rest_seconds: 0,
-  }
-  await setActiveWorkout(workout)
-  return workout
-}
 
 /**
  * Guarda no treino a carga que voce realmente usou, para a proxima sessao ja
@@ -317,7 +339,13 @@ const SEED: Array<{ routine: string; exercises: SeedExercise[] }> = [
     routine: 'Treino A - Peito e Triceps',
     exercises: [
       { name: 'Supino reto com barra', muscle_group: 'peito', sets: 4, reps: 10, weight: 40 },
-      { name: 'Supino inclinado com halteres', muscle_group: 'peito', sets: 3, reps: 12, weight: 16 },
+      {
+        name: 'Supino inclinado com halteres',
+        muscle_group: 'peito',
+        sets: 3,
+        reps: 12,
+        weight: 16,
+      },
       { name: 'Crucifixo na maquina', muscle_group: 'peito', sets: 3, reps: 12, weight: 30 },
       { name: 'Triceps na polia', muscle_group: 'triceps', sets: 4, reps: 12, weight: 25 },
       { name: 'Triceps frances', muscle_group: 'triceps', sets: 3, reps: 12, weight: 14 },
@@ -340,7 +368,13 @@ const SEED: Array<{ routine: string; exercises: SeedExercise[] }> = [
       { name: 'Leg press', muscle_group: 'pernas', sets: 4, reps: 12, weight: 120 },
       { name: 'Cadeira extensora', muscle_group: 'pernas', sets: 3, reps: 15, weight: 40 },
       { name: 'Mesa flexora', muscle_group: 'pernas', sets: 3, reps: 12, weight: 35 },
-      { name: 'Desenvolvimento com halteres', muscle_group: 'ombros', sets: 4, reps: 10, weight: 14 },
+      {
+        name: 'Desenvolvimento com halteres',
+        muscle_group: 'ombros',
+        sets: 4,
+        reps: 10,
+        weight: 14,
+      },
       { name: 'Elevacao lateral', muscle_group: 'ombros', sets: 3, reps: 15, weight: 8 },
       { name: 'Panturrilha em pe', muscle_group: 'panturrilha', sets: 4, reps: 15, weight: 60 },
     ],
@@ -356,15 +390,21 @@ export async function seedStarterData(): Promise<void> {
   const updated_at = nowISO()
   let routinePosition = 0
 
+  // Segunda / quarta / sexta: agenda classica de ABC, ja deixando o app com
+  // dias marcados desde o primeiro minuto (da para trocar no editor).
+  const SEED_DAYS: Weekday[][] = [[1], [3], [5]]
+
   for (const block of SEED) {
     const routine: Routine = {
       id: newId(),
       user_id,
       name: block.routine,
-      position: routinePosition++,
+      position: routinePosition,
+      scheduled_days: SEED_DAYS[routinePosition] ?? [],
       archived: false,
       updated_at,
     }
+    routinePosition++
     await putRoutine(routine)
 
     let position = 0

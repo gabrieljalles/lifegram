@@ -1,5 +1,6 @@
 import {
   differenceInCalendarDays,
+  addDays,
   eachDayOfInterval,
   format,
   parseISO,
@@ -9,7 +10,7 @@ import {
   startOfYear,
   subDays,
 } from 'date-fns'
-import type { Exercise, Session, SetLog } from './types'
+import type { AppSettings, Exercise, Routine, Session, SetLog, Weekday } from './types'
 
 /* --------------------------------------------------------- fundamentais */
 
@@ -159,9 +160,7 @@ export function summarizeExercise(logs: SetLog[], today = new Date()): ExerciseS
   const firstDate = points.length ? points[0].date : null
 
   const spanWeeks =
-    firstDate && lastDate
-      ? Math.max(1, (differenceInCalendarDays(lastDate, firstDate) + 1) / 7)
-      : 1
+    firstDate && lastDate ? Math.max(1, (differenceInCalendarDays(lastDate, firstDate) + 1) / 7) : 1
 
   return {
     points,
@@ -215,7 +214,9 @@ export function compareSets(
   } else {
     const parts = [
       weightDelta === 0 ? 'mesma carga' : `${signed(weightDelta)} kg`,
-      repsDelta === 0 ? 'mesmas reps' : `${repsDelta > 0 ? '+' : ''}${repsDelta} ${plural(repsDelta)}`,
+      repsDelta === 0
+        ? 'mesmas reps'
+        : `${repsDelta > 0 ? '+' : ''}${repsDelta} ${plural(repsDelta)}`,
     ]
     label = parts.join(', ')
   }
@@ -353,7 +354,10 @@ export function timeBreakdown(
   const totalSeconds = Math.max(0, session.duration_seconds)
   // A primeira serie do treino nao tem descanso antes: nao entra na media.
   const measured = logs.map((log) => log.rest_taken_seconds).filter((value) => value > 0)
-  const restSeconds = Math.min(totalSeconds, measured.reduce((sum, value) => sum + value, 0))
+  const restSeconds = Math.min(
+    totalSeconds,
+    measured.reduce((sum, value) => sum + value, 0),
+  )
 
   const planned = plannedRestSeconds.filter((value) => value > 0)
 
@@ -451,6 +455,134 @@ export function computeStreak(
   }
 
   return { current, longest, days, lastTrainedAt }
+}
+
+/* ------------------------------------------------------------- agenda */
+
+export interface Schedule {
+  /** Dias da semana em que algum treino e cobrado. */
+  dueDays: Weekday[]
+  /** Dias declarados como descanso: nunca cobram, mesmo com treino marcado. */
+  restDays: Weekday[]
+}
+
+/**
+ * Monta a agenda a partir dos treinos e dos ajustes. Dia de descanso vence o
+ * dia marcado no treino: quem pediu folga na quarta nao quer ser cobrado nela.
+ */
+export function scheduleOf(
+  routines: Routine[],
+  settings: Pick<AppSettings, 'rest_days'>,
+): Schedule {
+  const rest = new Set<Weekday>(settings.rest_days)
+  const due = new Set<Weekday>()
+  for (const routine of routines) {
+    if (routine.archived) continue
+    for (const day of routine.scheduled_days ?? []) {
+      if (!rest.has(day)) due.add(day)
+    }
+  }
+  return { dueDays: [...due].sort(), restDays: [...rest].sort() }
+}
+
+/** Treinos marcados para um dia da semana, na ordem em que aparecem na Home. */
+export function routinesForDay(routines: Routine[], weekday: Weekday): Routine[] {
+  return routines
+    .filter((r) => !r.archived && (r.scheduled_days ?? []).includes(weekday))
+    .sort((a, b) => a.position - b.position)
+}
+
+export interface ScheduleStreak extends StreakInfo {
+  /** 'agenda' = corrente por compromisso cumprido; 'livre' = por tolerancia. */
+  mode: 'agenda' | 'livre'
+  /** Hoje e dia cobrado e ainda nao treinou — a corrente esta em risco. */
+  pendingToday: boolean
+  /** Hoje e dia de descanso declarado. */
+  restToday: boolean
+  /** Ultimo dia cobrado que ficou em branco (yyyy-MM-dd), se houver. */
+  missedAt: string | null
+}
+
+const trainedDayKeys = (sessions: Array<Pick<Session, 'started_at' | 'finished_at'>>): string[] =>
+  Array.from(
+    new Set(
+      sessions
+        .filter((s) => s.finished_at)
+        .map((s) => format(startOfDay(parseISO(s.started_at)), 'yyyy-MM-dd')),
+    ),
+  ).sort()
+
+/**
+ * Corrente por agenda: conta dias cobrados seguidos que foram cumpridos.
+ *
+ * Regras que vieram do uso real:
+ * - faltar num dia cobrado zera — e esse o compromisso;
+ * - treinar em dia de descanso ou em dia livre entra no historico e nos
+ *   graficos, mas nao mexe na corrente (nem soma, nem quebra);
+ * - hoje nunca quebra: o dia so e cobrado depois que vira;
+ * - a cobranca e por DIA, nao por treino especifico — se o dia era de pernas e
+ *   voce fez costas, o compromisso do dia valeu;
+ * - sem nenhum dia marcado, cai na corrente por tolerancia (comportamento
+ *   antigo), senao quem nunca montou agenda ficaria sem corrente nenhuma.
+ */
+export function computeScheduleStreak(
+  sessions: Array<Pick<Session, 'started_at' | 'finished_at'>>,
+  schedule: Schedule,
+  today = new Date(),
+): ScheduleStreak {
+  const end = startOfDay(today)
+  const restToday = schedule.restDays.includes(end.getDay() as Weekday)
+  const due = new Set<Weekday>(schedule.dueDays)
+
+  if (due.size === 0) {
+    const legacy = computeStreak(sessions, today)
+    return { ...legacy, mode: 'livre', pendingToday: false, restToday, missedAt: null }
+  }
+
+  const days = trainedDayKeys(sessions)
+  if (days.length === 0) {
+    return {
+      current: 0,
+      longest: 0,
+      days,
+      lastTrainedAt: null,
+      mode: 'agenda',
+      pendingToday: due.has(end.getDay() as Weekday),
+      restToday,
+      missedAt: null,
+    }
+  }
+
+  const trained = new Set(days)
+  const todayKey = format(end, 'yyyy-MM-dd')
+  let run = 0
+  let longest = 0
+  let missedAt: string | null = null
+
+  // A cobranca so comeca no primeiro treino registrado: nao faz sentido punir
+  // por dias anteriores a existencia do historico.
+  for (let day = parseISO(days[0]); day <= end; day = addDays(day, 1)) {
+    const key = format(day, 'yyyy-MM-dd')
+    if (!due.has(day.getDay() as Weekday)) continue
+    if (trained.has(key)) {
+      run++
+      if (run > longest) longest = run
+    } else if (key !== todayKey) {
+      if (run > 0) missedAt = key
+      run = 0
+    }
+  }
+
+  return {
+    current: run,
+    longest,
+    days,
+    lastTrainedAt: parseISO(days[days.length - 1]),
+    mode: 'agenda',
+    pendingToday: due.has(end.getDay() as Weekday) && !trained.has(todayKey),
+    restToday,
+    missedAt,
+  }
 }
 
 export interface HeatmapDay {

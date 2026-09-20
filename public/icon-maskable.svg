@@ -1,12 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cinco elementos">
   <!--
-    Pentagrama dos cinco elementos em neon: ar, agua, fogo, terra e o quinto no
-    topo. Tudo em vetor (nenhuma imagem embutida) — o arquivo inteiro pesa
-    poucos KB e serve de favicon, icone do PWA e base do icone do iPhone.
-
-    O brilho e um filtro de blur reaproveitado por todas as linhas. Se algum
-    renderizador antigo ignorar o filtro, o desenho continua legivel: so perde
-    o halo.
+    Versao maskable: o Android recorta o icone num circulo/squircle, entao o
+    desenho vem reduzido a 68% e centrado, dentro da zona segura. O fundo
+    sangra ate a borda de proposito — quem recorta e o sistema.
   -->
   <defs>
     <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
@@ -22,8 +18,8 @@
       <stop offset="100%" stop-color="#7c6cf0" stop-opacity="0" />
     </radialGradient>
   </defs>
-
-  <rect width="512" height="512" rx="112" fill="#05060c" />
+  <rect width="512" height="512" fill="#05060c" />
+  <g transform="translate(256 262) scale(0.68) translate(-256 -262)">
   <circle cx="256" cy="262" r="210" fill="url(#halo)" />
 
   <g fill="none" stroke-linecap="round">
@@ -120,5 +116,6 @@
     <path d="M-27-13H6A10 10 0 1 0-4-23" />
     <path d="M-27 3H16A10 10 0 1 1 6 13" />
     <path d="M-27 18H-2" />
+  </g>
   </g>
 </svg>

@@ -4,6 +4,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -35,7 +36,13 @@ const axisTick = { fill: AXIS_TEXT, fontSize: 11 }
 
 /* ------------------------------------------------------------- tooltip */
 
-function TooltipBox({ title, rows }: { title: string; rows: Array<{ label: string; value: string; color?: string }> }) {
+function TooltipBox({
+  title,
+  rows,
+}: {
+  title: string
+  rows: Array<{ label: string; value: string; color?: string }>
+}) {
   return (
     <div className="rounded-xl border border-ink-600 bg-ink-950/95 px-3 py-2 shadow-xl backdrop-blur">
       <p className="mb-1 text-[11px] font-semibold text-ink-300">{title}</p>
@@ -83,7 +90,11 @@ export function VolumeBars({ data, height = 168 }: { data: VolumePoint[]; height
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: -18 }} barCategoryGap="22%">
+      <BarChart
+        data={data}
+        margin={{ top: 8, right: 4, bottom: 0, left: -18 }}
+        barCategoryGap="22%"
+      >
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={{ stroke: GRID }} />
         <YAxis
@@ -117,7 +128,11 @@ export function SessionBars({ data, height = 140 }: { data: VolumePoint[]; heigh
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: -18 }} barCategoryGap="22%">
+      <BarChart
+        data={data}
+        margin={{ top: 8, right: 4, bottom: 0, left: -18 }}
+        barCategoryGap="22%"
+      >
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={{ stroke: GRID }} />
         <YAxis
@@ -156,8 +171,16 @@ export function ProgressLines({ data, height = 200 }: { data: ProgressPoint[]; h
       <TooltipBox
         title={format(point.date, "d 'de' MMM yyyy", { locale: ptBR })}
         rows={[
-          { label: 'Carga de topo', value: `${formatWeight(point.topWeight)} kg`, color: SERIES.primary },
-          { label: '1RM estimado', value: `${formatWeight(point.e1rm)} kg`, color: SERIES.secondary },
+          {
+            label: 'Carga de topo',
+            value: `${formatWeight(point.topWeight)} kg`,
+            color: SERIES.primary,
+          },
+          {
+            label: '1RM estimado',
+            value: `${formatWeight(point.e1rm)} kg`,
+            color: SERIES.secondary,
+          },
         ]}
       />
     )
@@ -168,7 +191,13 @@ export function ProgressLines({ data, height = 200 }: { data: ProgressPoint[]; h
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={{ top: 10, right: 12, bottom: 0, left: -20 }}>
           <CartesianGrid stroke={GRID} vertical={false} />
-          <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={24} />
+          <XAxis
+            dataKey="label"
+            tick={axisTick}
+            tickLine={false}
+            axisLine={{ stroke: GRID }}
+            minTickGap={24}
+          />
           <YAxis
             tick={axisTick}
             tickLine={false}
@@ -222,7 +251,9 @@ export function WeightLine({ data, height = 180 }: { data: WeightPoint[]; height
     return (
       <TooltipBox
         title={format(point.date, "d 'de' MMM yyyy", { locale: ptBR })}
-        rows={[{ label: 'Peso', value: `${formatWeight(point.weight)} kg`, color: SERIES.tertiary }]}
+        rows={[
+          { label: 'Peso', value: `${formatWeight(point.weight)} kg`, color: SERIES.tertiary },
+        ]}
       />
     )
   }
@@ -231,7 +262,13 @@ export function WeightLine({ data, height = 180 }: { data: WeightPoint[]; height
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 10, right: 12, bottom: 0, left: -20 }}>
         <CartesianGrid stroke={GRID} vertical={false} />
-        <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={24} />
+        <XAxis
+          dataKey="label"
+          tick={axisTick}
+          tickLine={false}
+          axisLine={{ stroke: GRID }}
+          minTickGap={24}
+        />
         <YAxis
           tick={axisTick}
           tickLine={false}
@@ -278,5 +315,246 @@ export function Legend({
         </li>
       ))}
     </ul>
+  )
+}
+
+/* ------------------------------------------------------------- coragem */
+
+export interface PredictionPoint {
+  label: string
+  prevista: number
+  real: number | null
+  media: number | null
+}
+
+/**
+ * Previsto x real, tentativa a tentativa. A distancia entre as duas linhas e
+ * o tamanho do exagero do medo — por isso elas dividem o mesmo eixo de 0 a 10,
+ * a unica forma de a distancia ser lida como distancia.
+ */
+export function PredictionLines({
+  data,
+  height = 200,
+}: {
+  data: PredictionPoint[]
+  height?: number
+}) {
+  const renderTooltip = ({ active, payload, label }: TipProps) => {
+    if (!active || !payload?.length) return null
+    const point = payload[0].payload as PredictionPoint
+    return (
+      <TooltipBox
+        title={`Tentativa ${label}`}
+        rows={[
+          { label: 'Prevista', value: String(point.prevista), color: SERIES.secondary },
+          ...(point.real !== null
+            ? [{ label: 'Real', value: String(point.real), color: SERIES.primary }]
+            : []),
+          ...(point.media !== null
+            ? [{ label: 'Média de 3', value: String(point.media), color: SERIES.tertiary }]
+            : []),
+        ]}
+      />
+    )
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={{ stroke: GRID }} />
+        <YAxis
+          domain={[0, 10]}
+          ticks={[0, 2, 4, 6, 8, 10]}
+          tick={axisTick}
+          tickLine={false}
+          axisLine={false}
+          width={44}
+        />
+        <Tooltip content={renderTooltip} />
+        <Line
+          type="monotone"
+          dataKey="prevista"
+          stroke={SERIES.secondary}
+          strokeWidth={2}
+          dot={{ r: 3, fill: SERIES.secondary, strokeWidth: 0 }}
+          activeDot={{ r: 5, stroke: '#0b0f17', strokeWidth: 2 }}
+        />
+        <Line
+          type="monotone"
+          dataKey="real"
+          stroke={SERIES.primary}
+          strokeWidth={2.5}
+          dot={{ r: 3, fill: SERIES.primary, strokeWidth: 0 }}
+          activeDot={{ r: 5, stroke: '#0b0f17', strokeWidth: 2 }}
+        />
+        {/* Tracejada: e leitura auxiliar, nao um dado medido. */}
+        <Line
+          type="monotone"
+          dataKey="media"
+          stroke={SERIES.tertiary}
+          strokeWidth={2}
+          strokeDasharray="5 3"
+          dot={false}
+          connectNulls
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+export interface StepPoint {
+  label: string
+  nota: number
+}
+
+/** Nota oficial ao longo do tempo: degraus, porque ela so muda quando voce confirma. */
+export function ScoreSteps({ data, height = 160 }: { data: StepPoint[]; height?: number }) {
+  const renderTooltip = ({ active, payload, label }: TipProps) => {
+    if (!active || !payload?.length) return null
+    const point = payload[0].payload as StepPoint
+    return (
+      <TooltipBox
+        title={label as string}
+        rows={[{ label: 'Nota oficial', value: String(point.nota), color: SERIES.primary }]}
+      />
+    )
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={{ stroke: GRID }} />
+        <YAxis
+          domain={[0, 10]}
+          ticks={[0, 2, 4, 6, 8, 10]}
+          tick={axisTick}
+          tickLine={false}
+          axisLine={false}
+          width={44}
+        />
+        <Tooltip content={renderTooltip} />
+        <Line
+          type="stepAfter"
+          dataKey="nota"
+          stroke={SERIES.primary}
+          strokeWidth={2.5}
+          dot={{ r: 3.5, fill: SERIES.primary, strokeWidth: 0 }}
+          activeDot={{ r: 5, stroke: '#0b0f17', strokeWidth: 2 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+export interface CountPoint {
+  label: string
+  valor: number
+}
+
+/**
+ * Barras de contagem com linha de meta opcional. Serve tanto para tentativas
+ * por semana (com meta) quanto para a distribuicao de notas (sem meta).
+ */
+export function CountBars({
+  data,
+  target,
+  targetLabel = 'meta',
+  color = SERIES.primary,
+  unit,
+  height = 160,
+}: {
+  data: CountPoint[]
+  target?: number
+  targetLabel?: string
+  color?: string
+  unit: string
+  height?: number
+}) {
+  const renderTooltip = ({ active, payload, label }: TipProps) => {
+    if (!active || !payload?.length) return null
+    const point = payload[0].payload as CountPoint
+    return (
+      <TooltipBox
+        title={label as string}
+        rows={[{ label: unit, value: String(point.valor), color }]}
+      />
+    )
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart
+        data={data}
+        margin={{ top: 8, right: 4, bottom: 0, left: -24 }}
+        barCategoryGap="22%"
+      >
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={{ stroke: GRID }} />
+        <YAxis tick={axisTick} tickLine={false} axisLine={false} width={44} allowDecimals={false} />
+        <Tooltip cursor={{ fill: '#ffffff0d' }} content={renderTooltip} />
+        <Bar dataKey="valor" fill={color} radius={[4, 4, 0, 0]} maxBarSize={38} />
+        {target !== undefined && target > 0 && (
+          <ReferenceLine
+            y={target}
+            stroke={SERIES.secondary}
+            strokeDasharray="5 3"
+            label={{ value: targetLabel, position: 'right', fill: AXIS_TEXT, fontSize: 10 }}
+          />
+        )}
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+export interface AveragePoint {
+  label: string
+  media: number
+}
+
+/** Media das notas de todos os objetivos ativos: descer aqui e progresso geral. */
+export function AverageScoreLine({
+  data,
+  height = 170,
+}: {
+  data: AveragePoint[]
+  height?: number
+}) {
+  const renderTooltip = ({ active, payload, label }: TipProps) => {
+    if (!active || !payload?.length) return null
+    const point = payload[0].payload as AveragePoint
+    return (
+      <TooltipBox
+        title={label as string}
+        rows={[{ label: 'Média das notas', value: String(point.media), color: SERIES.tertiary }]}
+      />
+    )
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={{ stroke: GRID }} />
+        <YAxis
+          domain={[0, 10]}
+          ticks={[0, 2, 4, 6, 8, 10]}
+          tick={axisTick}
+          tickLine={false}
+          axisLine={false}
+          width={44}
+        />
+        <Tooltip content={renderTooltip} />
+        <Line
+          type="monotone"
+          dataKey="media"
+          stroke={SERIES.tertiary}
+          strokeWidth={2.5}
+          dot={{ r: 3, fill: SERIES.tertiary, strokeWidth: 0 }}
+          activeDot={{ r: 5, stroke: '#0b0f17', strokeWidth: 2 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
   )
 }

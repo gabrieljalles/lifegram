@@ -1,7 +1,11 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type {
   ActiveWorkout,
+  AppSettings,
   BodyWeightLog,
+  CourageAttempt,
+  CourageGoal,
+  CourageScoreChange,
   Exercise,
   ID,
   OutboxEntry,
@@ -11,7 +15,12 @@ import type {
   SetLog,
   SyncTable,
 } from './types'
-import { nowISO } from './types'
+import {
+  DEFAULT_REP_CEILING,
+  DEFAULT_SETTINGS,
+  LEGACY_REP_CEILING,
+  nowISO,
+} from './types'
 
 interface WorkoutDB extends DBSchema {
   exercises: { key: ID; value: Exercise }
@@ -28,6 +37,13 @@ interface WorkoutDB extends DBSchema {
     indexes: { by_session: ID; by_exercise: ID; by_completed: string }
   }
   body_weight_logs: { key: ID; value: BodyWeightLog; indexes: { by_logged_at: string } }
+  courage_goals: { key: ID; value: CourageGoal; indexes: { by_parent: ID } }
+  courage_attempts: {
+    key: ID
+    value: CourageAttempt
+    indexes: { by_goal: ID; by_planned: string }
+  }
+  courage_score_changes: { key: ID; value: CourageScoreChange; indexes: { by_goal: ID } }
   /** Fila de sincronizacao: o que ainda nao subiu para o Supabase. */
   outbox: { key: number; value: OutboxEntry }
   /** Fotos como blob, garantindo imagem no exercicio mesmo offline. */
@@ -37,7 +53,7 @@ interface WorkoutDB extends DBSchema {
 }
 
 const DB_NAME = 'workout'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 let dbPromise: Promise<IDBPDatabase<WorkoutDB>> | null = null
 
@@ -69,6 +85,18 @@ export function db(): Promise<IDBPDatabase<WorkoutDB>> {
         if (oldVersion < 2) {
           const bw = database.createObjectStore('body_weight_logs', { keyPath: 'id' })
           bw.createIndex('by_logged_at', 'logged_at')
+        }
+
+        if (oldVersion < 3) {
+          const goals = database.createObjectStore('courage_goals', { keyPath: 'id' })
+          goals.createIndex('by_parent', 'parent_id')
+
+          const attempts = database.createObjectStore('courage_attempts', { keyPath: 'id' })
+          attempts.createIndex('by_goal', 'goal_id')
+          attempts.createIndex('by_planned', 'planned_at')
+
+          const changes = database.createObjectStore('courage_score_changes', { keyPath: 'id' })
+          changes.createIndex('by_goal', 'goal_id')
         }
       },
     })
@@ -136,9 +164,14 @@ export async function getRoutine(id: ID): Promise<Routine | undefined> {
 
 export async function allRoutines(includeArchived = false): Promise<Routine[]> {
   const rows = await (await db()).getAll('routines')
-  return rows
-    .filter((r) => includeArchived || !r.archived)
-    .sort((a, b) => a.position - b.position)
+  return (
+    rows
+      .filter((r) => includeArchived || !r.archived)
+      // Treinos criados antes da agenda nao tem `scheduled_days`; sem este
+      // default toda leitura precisaria checar undefined.
+      .map((r) => ({ ...r, scheduled_days: r.scheduled_days ?? [] }))
+      .sort((a, b) => a.position - b.position)
+  )
 }
 
 export async function putRoutineExercise(re: RoutineExercise, { sync = true } = {}) {
@@ -218,6 +251,60 @@ export async function allBodyWeightLogs(): Promise<BodyWeightLog[]> {
   return rows.sort((a, b) => a.logged_at.localeCompare(b.logged_at))
 }
 
+/* -------------------------------------------------------------- coragem */
+
+export async function putCourageGoal(goal: CourageGoal, { sync = true } = {}) {
+  const database = await db()
+  await database.put('courage_goals', goal)
+  if (sync) await enqueue('courage_goals', goal.id)
+}
+
+export async function allCourageGoals(includeArchived = false): Promise<CourageGoal[]> {
+  const rows = await (await db()).getAll('courage_goals')
+  return rows
+    .filter((g) => includeArchived || !g.archived)
+    .sort((a, b) => a.score - b.score || a.position - b.position)
+}
+
+/**
+ * Arquiva em vez de apagar: o historico de tentativas continua valendo para as
+ * medias gerais, e nada se perde se voce se arrepender.
+ */
+export async function archiveCourageGoal(id: ID) {
+  const database = await db()
+  const goal = await database.get('courage_goals', id)
+  if (!goal) return
+  await putCourageGoal({ ...goal, archived: true, updated_at: nowISO() })
+}
+
+export async function putCourageAttempt(attempt: CourageAttempt, { sync = true } = {}) {
+  const database = await db()
+  await database.put('courage_attempts', attempt)
+  if (sync) await enqueue('courage_attempts', attempt.id)
+}
+
+export async function deleteCourageAttempt(id: ID) {
+  const database = await db()
+  await database.delete('courage_attempts', id)
+  await enqueue('courage_attempts', id, 'delete')
+}
+
+export async function allCourageAttempts(): Promise<CourageAttempt[]> {
+  const rows = await (await db()).getAll('courage_attempts')
+  return rows.sort((a, b) => a.planned_at.localeCompare(b.planned_at))
+}
+
+export async function putCourageScoreChange(change: CourageScoreChange, { sync = true } = {}) {
+  const database = await db()
+  await database.put('courage_score_changes', change)
+  if (sync) await enqueue('courage_score_changes', change.id)
+}
+
+export async function allCourageScoreChanges(): Promise<CourageScoreChange[]> {
+  const rows = await (await db()).getAll('courage_score_changes')
+  return rows.sort((a, b) => a.changed_at.localeCompare(b.changed_at))
+}
+
 /* ----------------------------------------------------------------- meta */
 
 export async function metaGet<T>(key: string): Promise<T | undefined> {
@@ -232,15 +319,61 @@ export async function metaDelete(key: string) {
   await (await db()).delete('meta', key)
 }
 
+export const SETTINGS_KEY = 'settings'
+
+export async function getSettings(): Promise<AppSettings> {
+  const stored = await metaGet<Partial<AppSettings>>(SETTINGS_KEY)
+  return { ...DEFAULT_SETTINGS, ...(stored ?? {}) }
+}
+
+export async function putSettings(settings: AppSettings) {
+  await metaSet(SETTINGS_KEY, settings)
+}
+
 export const ACTIVE_WORKOUT_KEY = 'active_workout'
 
 export async function getActiveWorkout(): Promise<ActiveWorkout | undefined> {
-  return metaGet<ActiveWorkout>(ACTIVE_WORKOUT_KEY)
+  const workout = await metaGet<ActiveWorkout>(ACTIVE_WORKOUT_KEY)
+  // Treino iniciado antes de existir o adiamento nao tem a lista: sem este
+  // default, voltar ao app no meio da sessao quebraria a tela.
+  return workout ? { ...workout, postponed: workout.postponed ?? [] } : undefined
 }
 
 export async function setActiveWorkout(w: ActiveWorkout | null) {
   if (w) await metaSet(ACTIVE_WORKOUT_KEY, w)
   else await metaDelete(ACTIVE_WORKOUT_KEY)
+}
+
+/* ----------------------------------------------------------- migracoes */
+
+const CEILING_MIGRATION_KEY = 'migrated:rep_ceiling_12'
+
+/**
+ * Migracoes de dados que ja estao no aparelho — o schema do IndexedDB nao
+ * resolve estas, porque mudam valores e nao a estrutura.
+ *
+ * Roda uma vez so (marca em `meta`) e e segura para repetir: cada passo checa
+ * o proprio estado antes de escrever.
+ */
+export async function runDataMigrations(): Promise<number> {
+  let changed = 0
+
+  // O teto de repeticoes padrao caiu de 15 para 12. Exercicios que ficaram no
+  // valor antigo acompanham; quem escolheu um teto proprio nao e tocado, entao
+  // a comparacao e com o valor legado exato, nao com "maior que 12".
+  if (!(await metaGet<boolean>(CEILING_MIGRATION_KEY))) {
+    const database = await db()
+    for (const exercise of await database.getAll('exercises')) {
+      if (exercise.rep_ceiling !== LEGACY_REP_CEILING) continue
+      await putExercise(
+        { ...exercise, rep_ceiling: DEFAULT_REP_CEILING, updated_at: nowISO() },
+      )
+      changed++
+    }
+    await metaSet(CEILING_MIGRATION_KEY, true)
+  }
+
+  return changed
 }
 
 /* --------------------------------------------------------------- photos */
@@ -260,36 +393,58 @@ export async function deletePhotoBlob(key: string) {
 /* -------------------------------------------------------- backup (JSON) */
 
 export interface Backup {
-  version: 1
+  version: 1 | 2
   exported_at: string
+  /** Presente a partir da versao 2: dias de descanso e demais preferencias. */
+  settings?: AppSettings
   exercises: Exercise[]
   routines: Routine[]
   routine_exercises: RoutineExercise[]
   sessions: Session[]
   set_logs: SetLog[]
   body_weight_logs: BodyWeightLog[]
+  courage_goals?: CourageGoal[]
+  courage_attempts?: CourageAttempt[]
+  courage_score_changes?: CourageScoreChange[]
 }
 
 export async function exportBackup(): Promise<Backup> {
   const database = await db()
-  const [exercises, routines, routine_exercises, sessions, set_logs, body_weight_logs] =
-    await Promise.all([
-      database.getAll('exercises'),
-      database.getAll('routines'),
-      database.getAll('routine_exercises'),
-      database.getAll('sessions'),
-      database.getAll('set_logs'),
-      database.getAll('body_weight_logs'),
-    ])
-  return {
-    version: 1,
-    exported_at: nowISO(),
+  const settings = await getSettings()
+  const [
     exercises,
     routines,
     routine_exercises,
     sessions,
     set_logs,
     body_weight_logs,
+    courage_goals,
+    courage_attempts,
+    courage_score_changes,
+  ] = await Promise.all([
+    database.getAll('exercises'),
+    database.getAll('routines'),
+    database.getAll('routine_exercises'),
+    database.getAll('sessions'),
+    database.getAll('set_logs'),
+    database.getAll('body_weight_logs'),
+    database.getAll('courage_goals'),
+    database.getAll('courage_attempts'),
+    database.getAll('courage_score_changes'),
+  ])
+  return {
+    version: 2,
+    exported_at: nowISO(),
+    settings,
+    exercises,
+    routines,
+    routine_exercises,
+    sessions,
+    set_logs,
+    body_weight_logs,
+    courage_goals,
+    courage_attempts,
+    courage_score_changes,
   }
 }
 
@@ -297,6 +452,16 @@ export async function exportBackup(): Promise<Backup> {
 export async function importBackup(backup: Backup): Promise<number> {
   const database = await db()
   let applied = 0
+
+  // Preferencia tambem resolve por updated_at: backup antigo nao apaga ajuste
+  // recente feito neste aparelho.
+  if (backup.settings) {
+    const local = await getSettings()
+    if (local.updated_at < backup.settings.updated_at) {
+      await putSettings({ ...DEFAULT_SETTINGS, ...backup.settings })
+      applied++
+    }
+  }
   const tables: SyncTable[] = [
     'exercises',
     'routines',
@@ -304,6 +469,9 @@ export async function importBackup(backup: Backup): Promise<number> {
     'sessions',
     'set_logs',
     'body_weight_logs',
+    'courage_goals',
+    'courage_attempts',
+    'courage_score_changes',
   ]
   for (const table of tables) {
     const rows = (backup[table] ?? []) as Array<{ id: ID; updated_at: string }>

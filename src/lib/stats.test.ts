@@ -4,8 +4,11 @@ import {
   bucketize,
   checkPR,
   compareSets,
+  computeScheduleStreak,
   computeStreak,
   epley1RM,
+  routinesForDay,
+  scheduleOf,
   formatClock,
   linearTrend,
   parseLocalDate,
@@ -16,7 +19,7 @@ import {
   totalVolume,
   weekKeyOf,
 } from './stats'
-import type { Exercise, Session, SetLog } from './types'
+import type { Exercise, Routine, Session, SetLog, Weekday } from './types'
 
 const iso = (day: string) => `${day}T10:00:00.000Z`
 
@@ -53,7 +56,12 @@ function session(day: string, finished = true): Session {
 
 describe('volume e 1RM', () => {
   it('soma reps x peso', () => {
-    expect(totalVolume([{ reps: 10, weight: 60 }, { reps: 8, weight: 70 }])).toBe(1160)
+    expect(
+      totalVolume([
+        { reps: 10, weight: 60 },
+        { reps: 8, weight: 70 },
+      ]),
+    ).toBe(1160)
   })
 
   it('aplica Epley e preserva a serie de 1 rep', () => {
@@ -199,18 +207,14 @@ describe('checkPR', () => {
 
 describe('computeStreak', () => {
   it('nao quebra a corrente em um dia de descanso', () => {
-    const sessions = ['2026-03-02', '2026-03-04', '2026-03-06', '2026-03-08'].map((d) =>
-      session(d),
-    )
+    const sessions = ['2026-03-02', '2026-03-04', '2026-03-06', '2026-03-08'].map((d) => session(d))
     const streak = computeStreak(sessions, new Date('2026-03-09'))
     expect(streak.current).toBe(4)
     expect(streak.longest).toBe(4)
   })
 
   it('quebra depois de passar da tolerancia', () => {
-    const sessions = ['2026-03-01', '2026-03-02', '2026-03-10', '2026-03-11'].map((d) =>
-      session(d),
-    )
+    const sessions = ['2026-03-01', '2026-03-02', '2026-03-10', '2026-03-11'].map((d) => session(d))
     const streak = computeStreak(sessions, new Date('2026-03-12'))
     expect(streak.current).toBe(2)
     expect(streak.longest).toBe(2)
@@ -257,7 +261,7 @@ describe('bucketize', () => {
 
   it('calcula variacao entre os dois ultimos periodos', () => {
     const buckets = bucketize(sessions, logs, 'week', 4, new Date('2026-03-12'))
-    expect(periodDelta(buckets)).toBeCloseTo((700 - 600) / 600 * 100, 5)
+    expect(periodDelta(buckets)).toBeCloseTo(((700 - 600) / 600) * 100, 5)
   })
 })
 
@@ -321,7 +325,9 @@ describe('bestSet', () => {
 
 describe('suggestProgression', () => {
   const cfg = (
-    over: Partial<Pick<Exercise, 'rep_floor' | 'rep_ceiling' | 'weight_increment' | 'muscle_group'>> = {},
+    over: Partial<
+      Pick<Exercise, 'rep_floor' | 'rep_ceiling' | 'weight_increment' | 'muscle_group'>
+    > = {},
   ): Pick<Exercise, 'rep_floor' | 'rep_ceiling' | 'weight_increment' | 'muscle_group'> => ({
     rep_floor: 8,
     rep_ceiling: 12,
@@ -436,7 +442,11 @@ describe('timeBreakdown', () => {
   })
 
   it('compara o descanso real com o planejado', () => {
-    const t = timeBreakdown(sessao, [{ rest_taken_seconds: 0 }, { rest_taken_seconds: 130 }], [90, 90])
+    const t = timeBreakdown(
+      sessao,
+      [{ rest_taken_seconds: 0 }, { rest_taken_seconds: 130 }],
+      [90, 90],
+    )
     expect(t.avgRestSeconds).toBe(130)
     expect(t.avgPlannedSeconds).toBe(90)
   })
@@ -452,5 +462,115 @@ describe('timeBreakdown', () => {
     expect(t.restShare).toBe(0)
     expect(t.avgRestSeconds).toBe(0)
     expect(t.measuredIntervals).toBe(0)
+  })
+})
+
+function routine(name: string, scheduled_days: Weekday[], archived = false): Routine {
+  return {
+    id: name,
+    user_id: null,
+    name,
+    position: 0,
+    scheduled_days,
+    archived,
+    updated_at: iso('2026-03-01'),
+  }
+}
+
+/** Seg/qua/sex, com sabado de folga declarada. */
+const MWF = [routine('A', [1]), routine('B', [3]), routine('C', [5])]
+
+describe('scheduleOf', () => {
+  it('reune os dias marcados nos treinos ativos', () => {
+    expect(scheduleOf(MWF, { rest_days: [] }).dueDays).toEqual([1, 3, 5])
+  })
+
+  it('dia de descanso vence o dia marcado no treino', () => {
+    const schedule = scheduleOf(MWF, { rest_days: [3] })
+    expect(schedule.dueDays).toEqual([1, 5])
+    expect(schedule.restDays).toEqual([3])
+  })
+
+  it('ignora treino arquivado', () => {
+    const schedule = scheduleOf([...MWF, routine('D', [2], true)], { rest_days: [] })
+    expect(schedule.dueDays).toEqual([1, 3, 5])
+  })
+
+  it('routinesForDay devolve os treinos daquele dia', () => {
+    expect(routinesForDay(MWF, 3).map((r) => r.name)).toEqual(['B'])
+    expect(routinesForDay(MWF, 2)).toEqual([])
+  })
+})
+
+describe('computeScheduleStreak', () => {
+  const schedule = scheduleOf(MWF, { rest_days: [] })
+
+  it('conta cada dia cobrado que foi cumprido', () => {
+    const sessions = ['2026-03-02', '2026-03-04', '2026-03-06'].map((d) => session(d))
+    const streak = computeScheduleStreak(sessions, schedule, new Date(2026, 2, 6))
+    expect(streak.mode).toBe('agenda')
+    expect(streak.current).toBe(3)
+    expect(streak.longest).toBe(3)
+  })
+
+  it('faltar num dia cobrado zera a corrente', () => {
+    // 04/03 (quarta) ficou em branco.
+    const sessions = ['2026-03-02', '2026-03-06'].map((d) => session(d))
+    const streak = computeScheduleStreak(sessions, schedule, new Date(2026, 2, 6))
+    expect(streak.current).toBe(1)
+    expect(streak.longest).toBe(1)
+    expect(streak.missedAt).toBe('2026-03-04')
+  })
+
+  it('treino em dia livre nao soma nem quebra', () => {
+    const sessions = ['2026-03-02', '2026-03-03', '2026-03-04'].map((d) => session(d))
+    const streak = computeScheduleStreak(sessions, schedule, new Date(2026, 2, 4))
+    expect(streak.current).toBe(2)
+  })
+
+  it('dia de descanso nunca cobra, mesmo com treino marcado nele', () => {
+    const folga = scheduleOf(MWF, { rest_days: [3] })
+    // Faltou na quarta, mas quarta virou descanso: a corrente segue.
+    const sessions = ['2026-03-02', '2026-03-06'].map((d) => session(d))
+    const streak = computeScheduleStreak(sessions, folga, new Date(2026, 2, 6))
+    expect(streak.current).toBe(2)
+    expect(streak.missedAt).toBeNull()
+  })
+
+  it('hoje ainda nao quebra: o dia so cobra depois que vira', () => {
+    const sessions = ['2026-03-02', '2026-03-04'].map((d) => session(d))
+    // Sexta 06/03 e cobrada e ainda nao foi feita.
+    const streak = computeScheduleStreak(sessions, schedule, new Date(2026, 2, 6))
+    expect(streak.current).toBe(2)
+    expect(streak.pendingToday).toBe(true)
+  })
+
+  it('sessao nao concluida nao vale como compromisso cumprido', () => {
+    const sessions = [session('2026-03-02'), session('2026-03-04', false)]
+    const streak = computeScheduleStreak(sessions, schedule, new Date(2026, 2, 5))
+    expect(streak.current).toBe(0)
+    expect(streak.missedAt).toBe('2026-03-04')
+  })
+
+  it('sem nenhum dia marcado, volta para a corrente por tolerancia', () => {
+    const livre = scheduleOf([routine('A', [])], { rest_days: [] })
+    const sessions = ['2026-03-02', '2026-03-04', '2026-03-06'].map((d) => session(d))
+    const streak = computeScheduleStreak(sessions, livre, new Date(2026, 2, 6))
+    expect(streak.mode).toBe('livre')
+    expect(streak.current).toBe(3)
+  })
+
+  it('marca o descanso de hoje para a tela saber o que dizer', () => {
+    const folga = scheduleOf(MWF, { rest_days: [0] })
+    const streak = computeScheduleStreak([session('2026-03-02')], folga, new Date(2026, 2, 8))
+    expect(streak.restToday).toBe(true)
+    expect(streak.pendingToday).toBe(false)
+  })
+
+  it('nao cobra dias anteriores ao primeiro treino registrado', () => {
+    const sessions = [session('2026-03-16')]
+    const streak = computeScheduleStreak(sessions, schedule, new Date(2026, 2, 16))
+    expect(streak.current).toBe(1)
+    expect(streak.missedAt).toBeNull()
   })
 })

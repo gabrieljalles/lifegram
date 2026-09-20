@@ -27,7 +27,7 @@ import {
   adjustRest,
   completeSet,
   finishWorkout,
-  jumpTo,
+  postponeExercise,
   rememberLoad,
   skipRest,
   undoSet,
@@ -120,7 +120,7 @@ export default function ActiveWorkout() {
     priorLogs,
   ])
 
-  if (!active) return <Navigate to="/" replace />
+  if (!active) return <Navigate to="/academia" replace />
   if (!item || !exercise) {
     return (
       <div className="flex h-dvh flex-col items-center justify-center gap-4 px-8 text-center">
@@ -131,7 +131,7 @@ export default function ActiveWorkout() {
             await abandonWorkout(active)
             await setActive(null)
             await reload()
-            navigate('/')
+            navigate('/academia')
           }}
         >
           Encerrar treino
@@ -179,6 +179,15 @@ export default function ActiveWorkout() {
     await fn()
     await reload()
   }
+
+  /** O exercicio da vez e um que voltou da fila de adiados. */
+  const isPostponed = active.postponed.includes(item.exercise_id)
+
+  /** Adiados que ainda estao por fazer — o que se perde ao encerrar agora. */
+  const pendingPostponed = active.items
+    .slice(active.cursor)
+    .filter((entry) => active.postponed.includes(entry.exercise_id))
+    .map((entry) => exerciseById.get(entry.exercise_id)?.name ?? 'um exercício')
 
   const nextIsNewExercise = active.set_number === 1
   const nextItem = active.items[active.cursor]
@@ -237,12 +246,12 @@ export default function ActiveWorkout() {
             }
           />
           <MenuItem
-            label="Pular para o próximo exercício"
+            label="Adiar para o fim do treino"
             disabled={active.cursor >= active.items.length - 1}
             onClick={() =>
               act(async () => {
-                const updated = await jumpTo(active, active.cursor + 1)
-                await setActive(updated)
+                const updated = await postponeExercise(active)
+                if (updated) await setActive(updated)
               })
             }
           />
@@ -251,6 +260,15 @@ export default function ActiveWorkout() {
             danger
             onClick={() =>
               act(async () => {
+                // Adiado nao trava a saida: so avisa o que fica para tras.
+                if (
+                  pendingPostponed.length > 0 &&
+                  !confirm(
+                    `Ainda falta ${pendingPostponed.join(', ')}. Encerrar o treino mesmo assim?`,
+                  )
+                ) {
+                  return
+                }
                 const session = await abandonWorkout(active)
                 navigate(session ? `/resumo/${session.id}` : '/', { replace: true })
                 await setActive(null)
@@ -268,12 +286,21 @@ export default function ActiveWorkout() {
           className="aspect-4/3 w-full max-w-sm text-3xl"
         />
 
+        {isPostponed && (
+          <p className="mt-3 rounded-full bg-pr-500/15 px-3 py-1 text-[11px] font-semibold text-pr-400">
+            Você adiou este — agora é a vez dele
+          </p>
+        )}
+
         <h1 className="mt-4 text-center text-2xl font-bold leading-tight tracking-tight">
           {exercise.name}
         </h1>
 
         {/* Bolinhas das series: quantas ja foram e quantas faltam. */}
-        <div className="mt-2.5 flex items-center gap-1.5" aria-label={`Série ${active.set_number} de ${totalSets}`}>
+        <div
+          className="mt-2.5 flex items-center gap-1.5"
+          aria-label={`Série ${active.set_number} de ${totalSets}`}
+        >
           {Array.from({ length: totalSets }, (_, index) => (
             <span
               key={index}
@@ -319,9 +346,14 @@ export default function ActiveWorkout() {
 
         {/* A sugestao some sozinha quando a carga ja foi ajustada na direcao certa. */}
         {suggestion &&
-          (suggestion.action === 'increase' ? weight < suggestion.weight : weight > suggestion.weight) && (
+          (suggestion.action === 'increase'
+            ? weight < suggestion.weight
+            : weight > suggestion.weight) && (
             <div className="animate-rise mt-4 w-full max-w-sm">
-              <ProgressionCard suggestion={suggestion} onApply={() => setWeight(suggestion.weight)} />
+              <ProgressionCard
+                suggestion={suggestion}
+                onApply={() => setWeight(suggestion.weight)}
+              />
             </div>
           )}
 

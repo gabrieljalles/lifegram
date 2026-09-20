@@ -14,7 +14,10 @@ export default function Heatmap({ days }: { days: HeatmapDay[] }) {
   const [hover, setHover] = useState<HeatmapDay | null>(null)
 
   const steps = useMemo(() => {
-    const volumes = days.filter((d) => d.volume > 0).map((d) => d.volume).sort((a, b) => a - b)
+    const volumes = days
+      .filter((d) => d.volume > 0)
+      .map((d) => d.volume)
+      .sort((a, b) => a - b)
     if (volumes.length === 0) return [] as number[]
     const at = (q: number) => volumes[Math.min(volumes.length - 1, Math.floor(volumes.length * q))]
     return [at(0.25), at(0.5), at(0.75)]

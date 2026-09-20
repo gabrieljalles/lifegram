@@ -1,0 +1,260 @@
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { format, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { Button, Card, EmptyState, Header, Section } from '../../components/ui'
+import { DataWarning, GoalBar, ScoreBadge, StatusChip } from '../../components/courage-ui'
+import {
+  attemptsOfGoal,
+  attemptsPerWeek,
+  evaluateGoal,
+  overallStats,
+  pendingOf,
+  weeklyStreak,
+} from '../../lib/courage'
+import { useApp } from '../../lib/store'
+import { COURAGE_STATUS_LABEL, type CourageGoal, type CourageStatus } from '../../lib/types'
+
+type Filter = 'todos' | CourageStatus
+
+const FILTERS: Array<{ id: Filter; label: string }> = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'andamento', label: COURAGE_STATUS_LABEL.andamento },
+  { id: 'reavaliar', label: COURAGE_STATUS_LABEL.reavaliar },
+  { id: 'normalizado', label: COURAGE_STATUS_LABEL.normalizado },
+]
+
+export default function CourageHome() {
+  const navigate = useNavigate()
+  const { courageGoals, courageAttempts, settings } = useApp()
+  const [filter, setFilter] = useState<Filter>('todos')
+
+  const target = settings.courage_weekly_goal
+
+  /** Avaliacao de cada objetivo, calculada uma vez e reaproveitada na lista. */
+  const evaluated = useMemo(
+    () =>
+      courageGoals.map((goal) => {
+        const attempts = attemptsOfGoal(courageAttempts, goal.id)
+        const hasChildren = courageGoals.some((g) => g.parent_id === goal.id)
+        return { goal, attempts, evaluation: evaluateGoal(goal, attempts, hasChildren) }
+      }),
+    [courageGoals, courageAttempts],
+  )
+
+  const week = useMemo(() => {
+    const weeks = attemptsPerWeek(courageAttempts, 1)
+    return weeks[weeks.length - 1]?.tentativas ?? 0
+  }, [courageAttempts])
+
+  const streak = useMemo(() => weeklyStreak(courageAttempts, target), [courageAttempts, target])
+
+  const overall = useMemo(
+    () => overallStats(courageGoals, courageAttempts),
+    [courageGoals, courageAttempts],
+  )
+
+  /** Previsoes salvas e ainda sem nota real: o fluxo de duas etapas em aberto. */
+  const pending = useMemo(() => pendingOf(courageAttempts), [courageAttempts])
+
+  const visible = useMemo(
+    () =>
+      evaluated
+        .filter((entry) => filter === 'todos' || entry.evaluation.status === filter)
+        // Do mais facil para o mais dificil: o proximo degrau fica no topo.
+        .sort((a, b) => a.goal.score - b.goal.score || a.goal.name.localeCompare(b.goal.name)),
+    [evaluated, filter],
+  )
+
+  const goalName = (id: string) => courageGoals.find((g) => g.id === id)?.name ?? 'Objetivo'
+
+  return (
+    <div>
+      <Header
+        title="Coragem"
+        subtitle={
+          courageGoals.length === 0
+            ? 'Sua escada do medo, um degrau por vez'
+            : `${overall.goals} ${overall.goals === 1 ? 'objetivo' : 'objetivos'} · ${overall.normalized} ${overall.normalized === 1 ? 'normalizado' : 'normalizados'}`
+        }
+        back="/"
+        action={
+          <Button size="sm" onClick={() => navigate('/coragem/novo')}>
+            + Objetivo
+          </Button>
+        }
+      />
+
+      {courageGoals.length === 0 ? (
+        <EmptyState
+          icon="🦁"
+          title="Cadastre seu primeiro objetivo pequeno"
+          description="Comece pelos de nota 1 ou 2 — algo que dá um friozinho, não algo que aterroriza. A escada sobe sozinha depois."
+          action={
+            <Button size="lg" variant="go" onClick={() => navigate('/coragem/novo')}>
+              Criar objetivo
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          <Section title="Sua semana">
+            <Card className="p-4">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="tnum text-3xl font-extrabold">
+                    {week}
+                    <span className="text-base font-semibold text-ink-400"> / {target}</span>
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink-400">
+                    {week >= target
+                      ? 'Meta da semana batida 🎉'
+                      : `Faltam ${target - week} para bater a meta`}
+                  </p>
+                </div>
+                {streak > 0 && (
+                  <div className="flex shrink-0 items-center gap-1 rounded-full bg-fire-500/15 px-2.5 py-1 text-fire-400">
+                    <span aria-hidden="true">🔥</span>
+                    <span className="tnum text-sm font-bold">{streak}</span>
+                    <span className="text-[11px] font-medium">
+                      {streak === 1 ? 'semana' : 'semanas'}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="mt-3">
+                <GoalBar value={week} target={target} />
+              </div>
+
+              {overall.confidence.level === 'insuficiente' ? (
+                <DataWarning>{overall.confidence.note}</DataWarning>
+              ) : (
+                overall.bias > 0 && (
+                  <p className="mt-3 text-sm leading-relaxed text-ink-300">
+                    {overall.confidence.phrase}:{' '}
+                    <span className="font-semibold text-go-400">
+                      seu medo superestima a dificuldade em {overall.bias}{' '}
+                      {overall.bias === 1 ? 'ponto' : 'pontos'}
+                    </span>
+                    , na média de tudo que você já encarou.
+                  </p>
+                )
+              )}
+            </Card>
+          </Section>
+
+          {pending.length > 0 && (
+            <Section title="Previsões em aberto">
+              <div className="flex flex-col gap-2">
+                {pending.map((attempt) => (
+                  <Card
+                    key={attempt.id}
+                    className="flex items-center gap-3 border-pr-500/40 bg-pr-500/10 p-3.5"
+                    onClick={() => navigate(`/coragem/tentativa/${attempt.id}`)}
+                  >
+                    <ScoreBadge score={attempt.predicted} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{goalName(attempt.goal_id)}</p>
+                      <p className="text-[11px] text-ink-400">
+                        previsto em{' '}
+                        {format(parseISO(attempt.planned_at), "d 'de' MMM', às' HH:mm", {
+                          locale: ptBR,
+                        })}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs font-semibold text-pr-400">completar</span>
+                  </Card>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          <Section
+            title="Seus degraus"
+            action={
+              <button
+                type="button"
+                onClick={() => navigate('/coragem/painel')}
+                className="text-xs font-semibold text-brand-400"
+              >
+                Ver painel
+              </button>
+            }
+          >
+            <div className="mb-2 flex gap-1.5 overflow-x-auto pb-0.5">
+              {FILTERS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setFilter(option.id)}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    filter === option.id ? 'bg-brand-600 text-white' : 'bg-ink-800 text-ink-400'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            {visible.length === 0 ? (
+              <Card className="p-4 text-sm text-ink-400">
+                Nenhum objetivo com este status por enquanto.
+              </Card>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {visible.map(({ goal, attempts, evaluation }) => (
+                  <GoalRow
+                    key={goal.id}
+                    goal={goal}
+                    attempts={attempts.length}
+                    completed={attempts.filter((a) => a.actual !== null).length}
+                    status={evaluation.status}
+                    child={goal.parent_id !== null}
+                    onOpen={() => navigate(`/coragem/${goal.id}`)}
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
+        </>
+      )}
+    </div>
+  )
+}
+
+function GoalRow({
+  goal,
+  attempts,
+  completed,
+  status,
+  child,
+  onOpen,
+}: {
+  goal: CourageGoal
+  attempts: number
+  completed: number
+  status: CourageStatus
+  child: boolean
+  onOpen: () => void
+}) {
+  return (
+    <Card className={`flex items-center gap-3 p-3.5 ${child ? 'ml-4' : ''}`} onClick={onOpen}>
+      <ScoreBadge score={goal.score} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate font-semibold">{goal.name}</p>
+          {status !== 'andamento' && <StatusChip status={status} />}
+        </div>
+        <p className="tnum mt-0.5 text-xs text-ink-400">
+          {completed === 0
+            ? 'nenhuma tentativa ainda'
+            : `${completed} ${completed === 1 ? 'tentativa' : 'tentativas'}`}
+          {attempts > completed && ` · ${attempts - completed} em aberto`}
+        </p>
+      </div>
+      <span className="text-ink-400" aria-hidden="true">
+        ›
+      </span>
+    </Card>
+  )
+}

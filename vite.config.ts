@@ -11,9 +11,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],
       manifest: {
-        name: 'Workout — Progresso na Academia',
-        short_name: 'Workout',
-        description: 'Guia de treino com timer de descanso e estatisticas de progresso',
+        name: 'Lifegram — seu progresso, área por área',
+        short_name: 'Lifegram',
+        description: 'Treino, coragem e estatisticas de progresso em varias areas da vida',
         theme_color: '#0b0f17',
         background_color: '#0b0f17',
         display: 'standalone',
@@ -21,7 +21,15 @@ export default defineConfig({
         start_url: '/',
         icons: [
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' },
-          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+          { src: 'apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+          // O sistema recorta o maskable: ele tem margem propria, por isso e um
+          // arquivo separado e nao o mesmo desenho do icone normal.
+          {
+            src: 'icon-maskable.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'maskable',
+          },
         ],
       },
       workbox: {

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Card, EmptyState, Header, Section } from '../../components/ui'
 import { putRoutine } from '../../lib/db'
 import { useApp } from '../../lib/store'
-import { newId, nowISO } from '../../lib/types'
+import { WEEKDAYS, newId, nowISO } from '../../lib/types'
 import { seedStarterData } from '../../lib/workout'
 
 export default function RoutineList() {
@@ -19,6 +19,7 @@ export default function RoutineList() {
       user_id: null,
       name: `Treino ${String.fromCharCode(65 + routines.length)}`,
       position: routines.length,
+      scheduled_days: [],
       archived: false,
       updated_at: nowISO(),
     })
@@ -77,6 +78,10 @@ export default function RoutineList() {
                     <p className="truncate font-semibold">{routine.name}</p>
                     <p className="text-xs text-ink-400">
                       {count} {count === 1 ? 'exercício' : 'exercícios'}
+                      {routine.scheduled_days.length > 0 &&
+                        ` · ${routine.scheduled_days
+                          .map((day) => WEEKDAYS[day].label.slice(0, 3))
+                          .join(', ')}`}
                     </p>
                   </div>
                   <span className="text-ink-400" aria-hidden="true">

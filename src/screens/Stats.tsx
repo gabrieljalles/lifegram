@@ -94,10 +94,7 @@ export default function Stats() {
     () => setLogs.filter((log) => log.is_pr_weight || log.is_pr_volume).length,
     [setLogs],
   )
-  const finishedSessions = useMemo(
-    () => sessions.filter((s) => s.finished_at).length,
-    [sessions],
-  )
+  const finishedSessions = useMemo(() => sessions.filter((s) => s.finished_at).length, [sessions])
 
   const weightPoints = useMemo(
     () =>
@@ -111,7 +108,10 @@ export default function Stats() {
   const weightTrend = useMemo(
     () =>
       linearTrend(
-        bodyWeightLogs.map((log) => ({ date: parseLocalDate(log.logged_at), value: log.weight_kg })),
+        bodyWeightLogs.map((log) => ({
+          date: parseLocalDate(log.logged_at),
+          value: log.weight_kg,
+        })),
       ),
     [bodyWeightLogs],
   )
@@ -121,7 +121,9 @@ export default function Stats() {
     <Section title="Peso corporal">
       <Card className="p-3 pr-4">
         <div className="flex items-baseline gap-2 px-1">
-          <span className="tnum text-2xl font-bold leading-none">{formatWeight(latestWeight ?? 0)}</span>
+          <span className="tnum text-2xl font-bold leading-none">
+            {formatWeight(latestWeight ?? 0)}
+          </span>
           <span className="text-sm font-semibold text-ink-300">kg</span>
           {weightTrend.reliable && (
             <span className="tnum ml-auto text-xs font-bold text-ink-300">

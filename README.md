@@ -1,12 +1,14 @@
-# Workout — progresso na academia
+# Lifegram — seu progresso, área por área
 
-App web (PWA) para seguir o treino e medir a evolução. Ele diz **qual exercício
-fazer, quantos kg pegar e quantas repetições**, conta o descanso sozinho
-(**1min30 por padrão**) e transforma cada série registrada em estatística.
+App web (PWA) para medir evolução em várias áreas da vida. Na **academia**, ele
+diz qual exercício fazer, quantos kg pegar e quantas repetições, conta o
+descanso sozinho (**1min30 por padrão**) e transforma cada série registrada em
+estatística. Na **coragem**, monta a escada do medo e mostra, com dados, o
+quanto o medo exagera.
 
 Feito para o celular, **sem servidor pago** e **sem depender de internet na
-academia**: os dados são gravados no aparelho na hora e sincronizam com a nuvem
-quando dá.
+hora do registro**: os dados são gravados no aparelho na hora e sincronizam com
+a nuvem quando dá.
 
 ## O que ele faz
 
@@ -40,6 +42,79 @@ quando dá.
   recorde de carga, 1RM estimado, volume acumulado, frequência, gráfico de
   evolução e histórico série a série.
 
+## Estrutura de áreas
+
+A tela inicial (`/`) é um hub: cada retângulo é uma área da vida que o app
+acompanha.
+
+| Área | Rota | Estado |
+|---|---|---|
+| Exercícios | `/academia` | completa — é o app de treino inteiro |
+| Coragem | `/coragem` | escada do medo (exposição da TCC) |
+| Desempenho | `/desempenho` | cruza todas as áreas num lugar só |
+
+As áreas são declaradas em [src/lib/skills.ts](src/lib/skills.ts): criar uma
+nova é adicionar uma entrada nessa lista, e o hub e o Desempenho passam a
+mostrá-la sozinhos. A barra de baixo é contextual — dentro de `/academia` ela
+vira a barra da academia (Treinar, Progresso, Montar), fora dela é a do hub
+(Início, Desempenho, Ajustes).
+
+No Desempenho, área sem histórico diz que não há o que medir em vez de exibir
+zeros — zero parece resultado ruim quando na verdade é ausência de dado.
+
+## Coragem (escada do medo)
+
+Hierarquia de exposição da TCC: você cadastra situações que exigem coragem com
+uma **nota de 0 a 10** (0 = já é normal, a meta de todo degrau), repete cada uma
+e deixa os dados mostrarem o tamanho do exagero.
+
+**Cada tentativa tem duas etapas.** Antes de encarar você salva a *nota
+prevista* e o que teme; depois registra a *nota real*, o que aconteceu e se o
+resultado foi ok — ok pelos fatos, não pela sensação do dia. A separação no
+tempo é o ponto: previsão lembrada depois do resultado já vem contaminada por
+ele.
+
+**A nota nunca cai sozinha.** Com 3+ tentativas completas, se a média real ficar
+2 pontos ou mais abaixo da prevista, o objetivo vira "Pronto para reavaliar" e o
+app *sugere* a média das reais arredondada. Você confirma ou ajusta; toda
+mudança entra no histórico com data e motivo. Quando a nota já corresponde à
+média real, a sugestão some em vez de insistir.
+
+Outras regras que o app aplica sozinho:
+
+- nota 0 + as três últimas tentativas ok → **Normalizado**, com comemoração;
+- nota alta que não cede em 5+ tentativas → sugere **quebrar em sub-objetivos**;
+- quando uma nota cai → lembra de **reavaliar os objetivos parecidos**.
+
+**Honestidade estatística** (em [src/lib/courage.ts](src/lib/courage.ts), com
+testes): abaixo de 3 tentativas o app diz "poucos dados ainda" e não conclui
+nada; com 3 ou 4 usa "por enquanto os dados sugerem"; só a partir de 5 fala em
+tendência. A análise de padrões (horário, ambiente, tipo de pessoa, energia) só
+abre com 15 tentativas completas, e grupo com uma única tentativa não vira
+padrão.
+
+Os dados saem em **CSV ou JSON** pelo painel (`/coragem/painel`), que também
+traz a média das notas ao longo do tempo, tentativas por semana com linha de
+meta (padrão 3, configurável ali mesmo) e a distribuição de objetivos por nota.
+
+## Agenda da semana
+
+Cada treino pode ser marcado para dias fixos da semana (no editor do treino), e
+os **dias de descanso** ficam nos Ajustes. A partir daí:
+
+- a Home mostra só o treino do dia — nada de escolher no susto;
+- faltar num dia cobrado **zera a corrente**;
+- dia de descanso nunca cobra, e o descanso vence o dia marcado num treino;
+- treinar num dia de descanso ou num dia livre **conta** no histórico, nos
+  gráficos e nos recordes, mas não mexe na corrente — bônus nunca pune;
+- o dia de hoje só passa a cobrar depois que vira, então a corrente nunca
+  quebra no meio do dia;
+- treino sem nenhum dia marcado fica sempre disponível e não cobra nada. Sem
+  nenhum treino com dia marcado, a corrente volta ao modo antigo (tolerância).
+
+A cobrança é por **dia**, não por treino específico: se o dia era de pernas e
+você fez costas, o compromisso do dia valeu.
+
 ## Como a estatística é calculada
 
 | Métrica | Fórmula |
@@ -49,9 +124,10 @@ quando dá.
 | Progresso mensal | inclinação de uma regressão linear do 1RM estimado por sessão, normalizada para 30 dias (mínimo de 3 sessões) |
 | Consistência | R² da mesma reta — diz se a progressão é firme ou oscilante |
 | Comparação com a última vez | vence quem tem o maior 1RM estimado — trocar carga por repetição conta como progresso |
-| Sugestão de subir carga | teto de reps batido em **todas** as séries (padrão 15, editável) → carga + incremento (padrão 1 kg, editável) |
+| Sugestão de subir carga | teto de reps batido em **todas** as séries (padrão 12, editável) → carga + incremento (padrão 1 kg, editável) |
 | Recorde | maior carga já feita, e maior `reps × carga` numa única série |
-| Sequência | dias treinados seguidos, tolerando até 2 dias de descanso |
+| Sequência (com agenda) | dias **cobrados** cumpridos seguidos — faltar num dia cobrado zera |
+| Sequência (sem agenda) | dias treinados seguidos, tolerando até 2 dias parado |
 
 A lógica toda vive em [src/lib/stats.ts](src/lib/stats.ts), sem React e sem
 banco — e é coberta por testes em
@@ -76,7 +152,9 @@ só no aparelho, com backup manual em JSON pelos Ajustes.
 2. No **SQL Editor**, rode [supabase/schema.sql](supabase/schema.sql) inteiro.
    Ele cria as tabelas, os índices, as políticas de RLS e o bucket privado das
    fotos. *Se você já tinha rodado o schema antes da dupla progressão existir,
-   rode também [supabase/migrations/001_progressao.sql](supabase/migrations/001_progressao.sql).*
+   rode também as migrações em [supabase/migrations/](supabase/migrations/) na
+   ordem numérica — `004_agenda.sql` sincroniza os dias da semana de cada treino
+   e `005_coragem.sql` cria as tabelas da área Coragem.*
 3. Copie `.env.example` para `.env` e preencha com a URL e a chave anônima
    (Project Settings → API).
 4. Reinicie o `npm run dev`. Em **Ajustes**, informe seu e-mail: o acesso é por

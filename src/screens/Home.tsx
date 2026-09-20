@@ -7,18 +7,20 @@ import { Button, Card, Delta, EmptyState, Section, StatTile } from '../component
 import { putBodyWeightLog } from '../lib/db'
 import {
   bucketize,
-  computeStreak,
+  computeScheduleStreak,
   formatVolume,
   formatWeight,
   heatmapDays,
   parseLocalDate,
   periodDelta,
+  routinesForDay,
+  scheduleOf,
   weekKeyOf,
 } from '../lib/stats'
 import { useApp } from '../lib/store'
 import { unlockAudio } from '../lib/timer'
 import { seedStarterData, startWorkout } from '../lib/workout'
-import { newId, nowISO, type Routine } from '../lib/types'
+import { WEEKDAYS, newId, nowISO, type Routine, type Weekday } from '../lib/types'
 
 export default function Home() {
   const navigate = useNavigate()
@@ -29,13 +31,20 @@ export default function Home() {
     setLogs,
     bodyWeightLogs,
     active,
+    settings,
     reload,
     setActive,
     syncStatus,
   } = useApp()
   const [busy, setBusy] = useState(false)
 
-  const streak = useMemo(() => computeStreak(sessions), [sessions])
+  const schedule = useMemo(() => scheduleOf(routines, settings), [routines, settings])
+  const streak = useMemo(() => computeScheduleStreak(sessions, schedule), [sessions, schedule])
+
+  const weekday = new Date().getDay() as Weekday
+  /** Treinos marcados para hoje — a agenda manda na sugestao. */
+  const todayRoutines = useMemo(() => routinesForDay(routines, weekday), [routines, weekday])
+  const restToday = settings.rest_days.includes(weekday)
   const heat = useMemo(() => heatmapDays(sessions, setLogs), [sessions, setLogs])
   const weeks = useMemo(() => bucketize(sessions, setLogs, 'week', 2), [sessions, setLogs])
 
@@ -106,21 +115,48 @@ export default function Home() {
   return (
     <div>
       <header className="safe-t px-4 pb-2 pt-4">
-        <p className="text-xs capitalize text-ink-400">{hoje}</p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            aria-label="Voltar para as áreas"
+            className="-ml-1 flex h-7 w-7 items-center justify-center rounded-lg text-ink-400"
+          >
+            ‹
+          </button>
+          <p className="text-xs capitalize text-ink-400">{hoje}</p>
+        </div>
         <div className="mt-1 flex items-end justify-between gap-3">
           <h1 className="text-2xl font-bold tracking-tight">
-            {streak.current > 0 ? 'Bora manter a corrente' : 'Bora treinar'}
+            {streak.current > 0
+              ? 'Bora manter a corrente'
+              : restToday
+                ? 'Dia de descanso'
+                : 'Bora treinar'}
           </h1>
           {streak.current > 0 && (
             <div className="flex shrink-0 items-center gap-1 rounded-full bg-fire-500/15 px-2.5 py-1 text-fire-400">
               <span aria-hidden="true">🔥</span>
               <span className="tnum text-sm font-bold">{streak.current}</span>
               <span className="text-[11px] font-medium">
-                {streak.current === 1 ? 'treino' : 'treinos'}
+                {streak.mode === 'agenda'
+                  ? streak.current === 1
+                    ? 'dia em dia'
+                    : 'dias em dia'
+                  : streak.current === 1
+                    ? 'treino'
+                    : 'treinos'}
               </span>
             </div>
           )}
         </div>
+        {streak.pendingToday && !active && !trainedToday && (
+          <p className="mt-1 text-[11px] leading-relaxed text-pr-400">
+            {streak.current > 0
+              ? `Hoje é dia cobrado pela agenda — treinar mantém a corrente de ${streak.current}.`
+              : 'Hoje é dia cobrado pela agenda — treinar começa uma corrente nova.'}
+          </p>
+        )}
         {syncStatus === 'pending' && (
           <p className="mt-1 text-[11px] text-ink-400">Alterações aguardando sincronização.</p>
         )}
@@ -135,16 +171,19 @@ export default function Home() {
               Exercício {active.cursor + 1} de {active.items.length} · série {active.set_number} ·
               iniciado {format(parseISO(active.started_at), 'HH:mm')}
             </p>
-            <Button className="mt-3 w-full" size="lg" variant="go" onClick={() => navigate('/treino')}>
+            <Button
+              className="mt-3 w-full"
+              size="lg"
+              variant="go"
+              onClick={() => navigate('/treino')}
+            >
               Continuar treino
             </Button>
           </Card>
         </div>
       )}
 
-      {!loggedWeightThisWeek && (
-        <WeeklyWeightCard lastLog={lastWeightLog} onSaved={reload} />
-      )}
+      {!loggedWeightThisWeek && <WeeklyWeightCard lastLog={lastWeightLog} onSaved={reload} />}
 
       {routines.length === 0 ? (
         <EmptyState
@@ -163,30 +202,82 @@ export default function Home() {
         />
       ) : (
         <>
-          {!active && !trainedToday && suggested && (
-            <Section title="Sugestão de hoje">
-              <Card className="overflow-hidden p-4">
-                <p className="text-lg font-bold">{suggested.name}</p>
-                <p className="mt-0.5 text-xs text-ink-400">
-                  {countOf(suggested)} exercícios ·{' '}
-                  {lastDoneByRoutine.has(suggested.id)
-                    ? `última vez em ${format(
-                        parseISO(lastDoneByRoutine.get(suggested.id) as string),
-                        "d 'de' MMM",
-                        { locale: ptBR },
-                      )}`
-                    : 'você ainda não fez este'}
-                </p>
-                <Button
-                  className="mt-3 w-full"
-                  size="lg"
-                  variant="go"
-                  disabled={busy || countOf(suggested) === 0}
-                  onClick={() => void begin(suggested)}
-                >
-                  Iniciar treino
-                </Button>
-              </Card>
+          {!active && (
+            <Section title={restToday ? 'Hoje é descanso' : 'Hoje'}>
+              {trainedToday ? (
+                <Card className="border-go-500/40 bg-go-600/10 p-4">
+                  <p className="font-semibold text-go-400">Treino de hoje feito ✓</p>
+                  <p className="mt-0.5 text-xs text-ink-400">
+                    {restToday
+                      ? 'Era dia de descanso e você treinou — entrou no histórico como bônus.'
+                      : 'Compromisso do dia cumprido. A corrente segue viva.'}
+                  </p>
+                </Card>
+              ) : restToday ? (
+                <Card className="p-4">
+                  <p className="text-lg font-bold">Dia de descanso 🌙</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-ink-400">
+                    Hoje não cobra nada: sua corrente está protegida. Se bater vontade de treinar, o
+                    treino conta no histórico e nos gráficos do mesmo jeito.
+                  </p>
+                  <Button
+                    className="mt-3 w-full"
+                    variant="outline"
+                    onClick={() => navigate('/treinos')}
+                  >
+                    Treinar mesmo assim
+                  </Button>
+                </Card>
+              ) : todayRoutines.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {todayRoutines.map((routine) => (
+                    <Card key={routine.id} className="overflow-hidden p-4">
+                      <p className="text-xs font-medium text-brand-400">
+                        Marcado para {WEEKDAYS[weekday].label}
+                      </p>
+                      <p className="mt-0.5 text-lg font-bold">{routine.name}</p>
+                      <p className="mt-0.5 text-xs text-ink-400">
+                        {countOf(routine)} exercícios ·{' '}
+                        {lastDoneByRoutine.has(routine.id)
+                          ? `última vez em ${format(
+                              parseISO(lastDoneByRoutine.get(routine.id) as string),
+                              "d 'de' MMM",
+                              { locale: ptBR },
+                            )}`
+                          : 'você ainda não fez este'}
+                      </p>
+                      <Button
+                        className="mt-3 w-full"
+                        size="lg"
+                        variant="go"
+                        disabled={busy || countOf(routine) === 0}
+                        onClick={() => void begin(routine)}
+                      >
+                        Iniciar treino
+                      </Button>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                suggested && (
+                  <Card className="overflow-hidden p-4">
+                    <p className="text-lg font-bold">Dia livre</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-ink-400">
+                      Nenhum treino marcado para hoje. Se quiser treinar, o que está parado há mais
+                      tempo é <span className="font-semibold text-ink-200">{suggested.name}</span> —
+                      conta no histórico e não mexe na corrente.
+                    </p>
+                    <Button
+                      className="mt-3 w-full"
+                      variant="outline"
+                      disabled={busy || countOf(suggested) === 0}
+                      onClick={() => void begin(suggested)}
+                    >
+                      Iniciar {suggested.name}
+                    </Button>
+                  </Card>
+                )
+              )}
             </Section>
           )}
 
@@ -212,7 +303,7 @@ export default function Home() {
                       <p className="truncate font-semibold">{routine.name}</p>
                       <p className="text-xs text-ink-400">
                         {count} {count === 1 ? 'exercício' : 'exercícios'}
-                        {last && ` · ${format(parseISO(last), "d/MM", { locale: ptBR })}`}
+                        {last && ` · ${format(parseISO(last), 'd/MM', { locale: ptBR })}`}
                       </p>
                     </div>
                     <Button
@@ -253,7 +344,13 @@ export default function Home() {
             <p className="mt-2 text-[11px] text-ink-400">
               Maior sequência:{' '}
               <span className="tnum font-semibold text-ink-300">{streak.longest}</span>{' '}
-              {streak.longest === 1 ? 'treino' : 'treinos seguidos'}
+              {streak.mode === 'agenda'
+                ? streak.longest === 1
+                  ? 'dia da agenda cumprido'
+                  : 'dias da agenda seguidos'
+                : streak.longest === 1
+                  ? 'treino'
+                  : 'treinos seguidos'}
             </p>
           )}
         </Card>

@@ -9,17 +9,26 @@ import {
   MUSCLE_ICON,
   MUSCLE_LABEL,
   Section,
+  WeekdayPicker,
 } from '../../components/ui'
 import { usePhotoURL } from '../../lib/photo'
 import { deleteRoutineExercise, putRoutine, putRoutineExercise } from '../../lib/db'
 import { formatClock } from '../../lib/stats'
 import { useApp } from '../../lib/store'
-import { newId, nowISO, type Exercise, type MuscleGroup, type RoutineExercise } from '../../lib/types'
+import {
+  WEEKDAYS,
+  newId,
+  nowISO,
+  type Exercise,
+  type MuscleGroup,
+  type RoutineExercise,
+  type Weekday,
+} from '../../lib/types'
 
 export default function RoutineEditor() {
   const { routineId } = useParams()
   const navigate = useNavigate()
-  const { routines, routineExercises, exercises, exerciseById, reload } = useApp()
+  const { routines, routineExercises, exercises, exerciseById, settings, reload } = useApp()
   const [picking, setPicking] = useState(false)
 
   const routine = routines.find((r) => r.id === routineId)
@@ -45,12 +54,15 @@ export default function RoutineEditor() {
     await reload()
   }
 
+  const setDays = async (scheduled_days: Weekday[]) => {
+    await putRoutine({ ...routine, scheduled_days, updated_at: nowISO() })
+    await reload()
+  }
+
   const addExercise = async (exercise: Exercise) => {
     // items.length colide com posicoes existentes depois de qualquer remocao
     // (deixa um buraco), duplicando posicao e travando a reordenacao depois.
-    const nextPosition = items.length
-      ? Math.max(...items.map((entry) => entry.position)) + 1
-      : 0
+    const nextPosition = items.length ? Math.max(...items.map((entry) => entry.position)) + 1 : 0
     await putRoutineExercise({
       id: newId(),
       routine_id: routine.id,
@@ -129,13 +141,38 @@ export default function RoutineEditor() {
         />
       </Section>
 
+      <Section title="Dias da semana">
+        <Card className="p-4">
+          <WeekdayPicker
+            value={routine.scheduled_days}
+            onChange={(days) => void setDays(days)}
+            disabled={settings.rest_days}
+          />
+          <p className="mt-2.5 text-[11px] leading-relaxed text-ink-400">
+            {routine.scheduled_days.length === 0
+              ? 'Sem dia marcado: este treino fica disponível quando você quiser e nunca cobra nada da sua corrente.'
+              : `Cobrado em ${listDays(routine.scheduled_days)}. Faltar num dia cobrado zera a corrente.`}
+          </p>
+          {routine.scheduled_days.some((day) => settings.rest_days.includes(day)) && (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-pr-400">
+              Alguns desses dias estão marcados como descanso nos Ajustes — neles o treino aparece
+              como sugestão, mas não cobra.
+            </p>
+          )}
+        </Card>
+      </Section>
+
       <Section title={`Exercícios (${items.length})`}>
         {items.length === 0 ? (
           <EmptyState
             icon="➕"
             title="Treino vazio"
             description="Adicione os exercícios na ordem em que você vai executá-los."
-            action={<Button variant="go" onClick={() => setPicking(true)}>Adicionar exercício</Button>}
+            action={
+              <Button variant="go" onClick={() => setPicking(true)}>
+                Adicionar exercício
+              </Button>
+            }
           />
         ) : (
           <div className="flex flex-col gap-2">
@@ -391,6 +428,12 @@ function ExercisePicker({
         </div>
       </div>
 
+      <div className="px-4 pb-3">
+        <Button variant="outline" className="w-full" onClick={onCreate}>
+          + Criar novo exercício
+        </Button>
+      </div>
+
       <div className="flex-1 overflow-y-auto px-4 pb-6">
         {filtered.length === 0 && (
           <p className="py-8 text-center text-sm text-ink-400">Nenhum exercício encontrado.</p>
@@ -408,10 +451,14 @@ function ExercisePicker({
             </button>
           ))}
         </div>
-        <Button variant="outline" className="mt-3 w-full" onClick={onCreate}>
-          + Criar novo exercício
-        </Button>
       </div>
     </div>
   )
+}
+
+/** "segunda, quarta e sexta" — leitura natural, sem lista seca de siglas. */
+function listDays(days: Weekday[]): string {
+  const names = [...days].sort((a, b) => a - b).map((day) => WEEKDAYS[day].label)
+  if (names.length === 1) return names[0]
+  return `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`
 }

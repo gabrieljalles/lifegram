@@ -24,6 +24,11 @@
   --color-fire-500: #f97316;
   --color-fire-600: #ea580c;
 
+  /* Aqua: cor auxiliar das areas novas, validada no fundo escuro. */
+  --color-aqua-400: #34d3a6;
+  --color-aqua-500: #199e70;
+  --color-aqua-600: #127a57;
+
   --color-pr-400: #fbbf24;
   --color-pr-500: #f59e0b;
 

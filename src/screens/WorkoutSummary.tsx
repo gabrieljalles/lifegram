@@ -67,7 +67,7 @@ export default function WorkoutSummary() {
     return (
       <div className="flex h-dvh flex-col items-center justify-center gap-4 px-8 text-center">
         <p className="text-ink-300">Treino não encontrado.</p>
-        <Button variant="outline" onClick={() => navigate('/')}>
+        <Button variant="outline" onClick={() => navigate('/academia')}>
           Voltar para o início
         </Button>
       </div>
@@ -101,7 +101,11 @@ export default function WorkoutSummary() {
           <StatTile
             label="Volume levantado"
             value={formatVolume(volume)}
-            hint={previous ? `antes: ${formatVolume(previous.total_volume)}` : 'primeira vez neste treino'}
+            hint={
+              previous
+                ? `antes: ${formatVolume(previous.total_volume)}`
+                : 'primeira vez neste treino'
+            }
           />
           <StatTile label="Duração" value={formatDuration(session.duration_seconds)} />
           <StatTile label="Séries" value={String(logs.length)} />
@@ -135,10 +139,7 @@ export default function WorkoutSummary() {
               className="rounded-l-full bg-brand-500"
               style={{ width: `${Math.round((1 - time.restShare) * 100)}%` }}
             />
-            <div
-              className="flex-1 rounded-r-full bg-ink-600"
-              aria-hidden="true"
-            />
+            <div className="flex-1 rounded-r-full bg-ink-600" aria-hidden="true" />
           </div>
 
           <p className="tnum mt-2 text-[11px] leading-relaxed text-ink-400">
@@ -219,7 +220,7 @@ export default function WorkoutSummary() {
       </Section>
 
       <div className="safe-b flex flex-col gap-2 px-4 pb-6 pt-2">
-        <Button size="lg" variant="go" onClick={() => navigate('/', { replace: true })}>
+        <Button size="lg" variant="go" onClick={() => navigate('/academia', { replace: true })}>
           Voltar para o início
         </Button>
         <Button variant="outline" onClick={() => navigate('/stats')}>

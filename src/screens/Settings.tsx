@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
-import { Button, Card, Header, Section } from '../components/ui'
+import { Button, Card, Header, Section, WeekdayPicker } from '../components/ui'
 import { exportBackup, importBackup, type Backup } from '../lib/db'
 import { useApp } from '../lib/store'
 import { isSupabaseConfigured, signInWithEmail, signOut } from '../lib/supabase'
 import { notificationPermission, requestNotificationPermission } from '../lib/timer'
+import { WEEKDAYS, type Weekday } from '../lib/types'
 
 const STATUS_TEXT: Record<string, { label: string; tone: string }> = {
   local: { label: 'Somente neste aparelho', tone: 'text-ink-300' },
@@ -15,8 +16,19 @@ const STATUS_TEXT: Record<string, { label: string; tone: string }> = {
 }
 
 export default function Settings() {
-  const { userEmail, syncStatus, pendingCount, syncNow, reload, sessions, setLogs, exercises } =
-    useApp()
+  const {
+    userEmail,
+    syncStatus,
+    pendingCount,
+    syncNow,
+    reload,
+    sessions,
+    setLogs,
+    exercises,
+    routines,
+    settings,
+    saveSettings,
+  } = useApp()
   const fileInput = useRef<HTMLInputElement>(null)
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -25,6 +37,11 @@ export default function Settings() {
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
   const status = STATUS_TEXT[syncStatus] ?? STATUS_TEXT.local
+
+  /** Treinos cujo dia marcado caiu num dia de folga — vale avisar, nao bloquear. */
+  const conflicting = routines
+    .filter((routine) => routine.scheduled_days.some((day) => settings.rest_days.includes(day)))
+    .map((routine) => routine.name)
 
   const login = async () => {
     if (!email.trim()) return
@@ -106,9 +123,9 @@ export default function Settings() {
                 localhost — e o login parece quebrado sem explicacao.
               */}
               <p className="mt-1 break-all text-[11px] leading-relaxed text-ink-400">
-                O link voltará para{' '}
-                <span className="font-semibold text-ink-300">{origin}</span>. Esta URL precisa estar
-                em Authentication → URL Configuration → Redirect URLs, no painel do Supabase.
+                O link voltará para <span className="font-semibold text-ink-300">{origin}</span>.
+                Esta URL precisa estar em Authentication → URL Configuration → Redirect URLs, no
+                painel do Supabase.
               </p>
             </div>
           )}
@@ -129,6 +146,33 @@ export default function Settings() {
                 Sair
               </Button>
             </div>
+          )}
+        </Card>
+      </Section>
+
+      <Section title="Dias de descanso">
+        <Card className="p-4">
+          <p className="text-sm leading-relaxed text-ink-300">
+            Marque os dias em que você não quer ser cobrado. Neles a corrente nunca quebra — e se
+            você treinar mesmo assim, o treino entra normalmente no histórico e nos gráficos.
+          </p>
+          <div className="mt-3">
+            <WeekdayPicker
+              tone="calm"
+              value={settings.rest_days}
+              onChange={(days) => void saveSettings({ rest_days: days })}
+            />
+          </div>
+          <p className="mt-2.5 text-[11px] leading-relaxed text-ink-400">
+            {settings.rest_days.length === 0
+              ? 'Nenhum dia de descanso: só cobram os dias marcados nos seus treinos.'
+              : `Folga em ${listDays(settings.rest_days)}.`}
+          </p>
+          {conflicting.length > 0 && (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-pr-400">
+              {conflicting.join(', ')} {conflicting.length === 1 ? 'tem dia' : 'têm dias'} de treino
+              marcado que caiu no descanso. O descanso vence: esses dias deixam de cobrar.
+            </p>
           )}
         </Card>
       </Section>
@@ -204,9 +248,7 @@ export default function Settings() {
 
       <Section title="Seus dados">
         <Card className="tnum flex flex-col gap-1 p-4 text-sm text-ink-300">
-          <p>
-            {exercises.length} exercícios cadastrados
-          </p>
+          <p>{exercises.length} exercícios cadastrados</p>
           <p>{sessions.filter((s) => s.finished_at).length} treinos concluídos</p>
           <p>{setLogs.length} séries registradas</p>
         </Card>
@@ -223,10 +265,16 @@ export default function Settings() {
       <Section title="Instalar no celular">
         <Card className="p-4 text-sm leading-relaxed text-ink-300">
           No Chrome (Android), abra o menu e toque em <strong>Instalar app</strong>. No iPhone, use
-          o botão de compartilhar do Safari e <strong>Adicionar à Tela de Início</strong>. Instalado,
-          o app abre em tela cheia e funciona sem internet.
+          o botão de compartilhar do Safari e <strong>Adicionar à Tela de Início</strong>.
+          Instalado, o app abre em tela cheia e funciona sem internet.
         </Card>
       </Section>
     </div>
   )
+}
+
+function listDays(days: Weekday[]): string {
+  const names = [...days].sort((a, b) => a - b).map((day) => WEEKDAYS[day].label)
+  if (names.length === 1) return names[0]
+  return `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`
 }

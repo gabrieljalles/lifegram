@@ -9,19 +9,29 @@ import {
 } from 'react'
 import {
   allBodyWeightLogs,
+  allCourageAttempts,
+  allCourageGoals,
+  allCourageScoreChanges,
   allExercises,
   allRoutineExercises,
   allRoutines,
   allSessions,
   allSetLogs,
   getActiveWorkout,
+  getSettings,
   outboxCount,
+  putSettings,
+  runDataMigrations,
   setActiveWorkout as persistActiveWorkout,
 } from './db'
 import { isSupabaseConfigured, supabase } from './supabase'
 import { startAutoSync, sync, type SyncResult } from './sync'
 import type {
   ActiveWorkout,
+  AppSettings,
+  CourageAttempt,
+  CourageGoal,
+  CourageScoreChange,
   BodyWeightLog,
   Exercise,
   ID,
@@ -30,6 +40,7 @@ import type {
   Session,
   SetLog,
 } from './types'
+import { DEFAULT_SETTINGS, nowISO } from './types'
 
 export type SyncStatus = 'local' | 'signed-out' | 'synced' | 'pending' | 'offline' | 'error'
 
@@ -41,7 +52,11 @@ interface AppState {
   sessions: Session[]
   setLogs: SetLog[]
   bodyWeightLogs: BodyWeightLog[]
+  courageGoals: CourageGoal[]
+  courageAttempts: CourageAttempt[]
+  courageScoreChanges: CourageScoreChange[]
   active: ActiveWorkout | null
+  settings: AppSettings
   exerciseById: Map<ID, Exercise>
   logsByExercise: Map<ID, SetLog[]>
   userEmail: string | null
@@ -49,6 +64,7 @@ interface AppState {
   pendingCount: number
   reload: () => Promise<void>
   setActive: (workout: ActiveWorkout | null) => Promise<void>
+  saveSettings: (patch: Partial<AppSettings>) => Promise<void>
   syncNow: () => Promise<SyncResult | null>
 }
 
@@ -62,7 +78,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sessions, setSessions] = useState<Session[]>([])
   const [setLogs, setSetLogs] = useState<SetLog[]>([])
   const [bodyWeightLogs, setBodyWeightLogs] = useState<BodyWeightLog[]>([])
+  const [courageGoals, setCourageGoals] = useState<CourageGoal[]>([])
+  const [courageAttempts, setCourageAttempts] = useState<CourageAttempt[]>([])
+  const [courageScoreChanges, setCourageScoreChanges] = useState<CourageScoreChange[]>([])
   const [active, setActiveState] = useState<ActiveWorkout | null>(null)
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(
@@ -70,29 +90,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const reload = useCallback(async () => {
-    const [ex, rt, rex, ses, logs, bw, act, pending] = await Promise.all([
-      allExercises(),
-      allRoutines(),
-      allRoutineExercises(),
-      allSessions(),
-      allSetLogs(),
-      allBodyWeightLogs(),
-      getActiveWorkout(),
-      outboxCount(),
-    ])
+    const [ex, rt, rex, ses, logs, bw, goals, attempts, changes, act, prefs, pending] =
+      await Promise.all([
+        allExercises(),
+        allRoutines(),
+        allRoutineExercises(),
+        allSessions(),
+        allSetLogs(),
+        allBodyWeightLogs(),
+        allCourageGoals(),
+        allCourageAttempts(),
+        allCourageScoreChanges(),
+        getActiveWorkout(),
+        getSettings(),
+        outboxCount(),
+      ])
     setExercises(ex)
     setRoutines(rt)
     setRoutineExercises(rex)
     setSessions(ses)
     setSetLogs(logs)
     setBodyWeightLogs(bw)
+    setCourageGoals(goals)
+    setCourageAttempts(attempts)
+    setCourageScoreChanges(changes)
     setActiveState(act ?? null)
+    setSettings(prefs)
     setPendingCount(pending)
     setReady(true)
   }, [])
 
   useEffect(() => {
-    void reload()
+    // Migracoes de dados antes da primeira leitura: a tela ja abre com os
+    // valores novos, sem piscar o estado antigo.
+    void runDataMigrations().then(reload)
   }, [reload])
 
   // Sessao do Supabase (quando configurado).
@@ -133,6 +164,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveState(workout)
   }, [])
 
+  const saveSettings = useCallback(async (patch: Partial<AppSettings>) => {
+    const next = { ...(await getSettings()), ...patch, updated_at: nowISO() }
+    await putSettings(next)
+    setSettings(next)
+  }, [])
+
   const syncNow = useCallback(async () => {
     if (!isSupabaseConfigured) return null
     const result = await sync()
@@ -140,10 +177,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return result
   }, [applySyncResult])
 
-  const exerciseById = useMemo(
-    () => new Map(exercises.map((e) => [e.id, e])),
-    [exercises],
-  )
+  const exerciseById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
 
   const logsByExercise = useMemo(() => {
     const map = new Map<ID, SetLog[]>()
@@ -166,7 +200,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sessions,
     setLogs,
     bodyWeightLogs,
+    courageGoals,
+    courageAttempts,
+    courageScoreChanges,
     active,
+    settings,
     exerciseById,
     logsByExercise,
     userEmail,
@@ -174,6 +212,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     pendingCount,
     reload,
     setActive,
+    saveSettings,
     syncNow,
   }
 

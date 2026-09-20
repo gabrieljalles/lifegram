@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button, ExercisePhoto, Header, MUSCLE_LABEL, Section } from '../../components/ui'
+import {
+  Button,
+  ExercisePhoto,
+  Header,
+  MUSCLE_LABEL,
+  NumberField,
+  Section,
+} from '../../components/ui'
 import { putExercise } from '../../lib/db'
 import { invalidatePhotoURL, savePhotoLocally, usePhotoURL } from '../../lib/photo'
 import { formatClock, formatWeight } from '../../lib/stats'
@@ -37,6 +44,7 @@ export default function ExerciseEditor() {
   const [increment, setIncrement] = useState(DEFAULT_WEIGHT_INCREMENT)
   const [draft, setDraft] = useState<Exercise | null>(null)
   const [saving, setSaving] = useState(false)
+  const [pasteNote, setPasteNote] = useState<string | null>(null)
 
   useEffect(() => {
     if (existing) {
@@ -52,6 +60,58 @@ export default function ExerciseEditor() {
   }, [existing?.id, existing?.photo_local_key])
 
   const photo = usePhotoURL(draft)
+
+  /**
+   * Ctrl+V com um print na area de transferencia vira a foto do exercicio.
+   * Evita o caminho chato de salvar o print em arquivo so para depois procurar
+   * ele no seletor.
+   *
+   * O ouvinte fica no documento porque o alvo do paste e onde esta o foco, e
+   * aqui o foco costuma estar no campo de nome — nao na area da foto.
+   */
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const items = event.clipboardData?.items
+      if (!items) return
+      for (const item of items) {
+        if (!item.type.startsWith('image/')) continue
+        const file = item.getAsFile()
+        if (!file) continue
+        event.preventDefault()
+        void pickPhoto(file).then(() => setPasteNote('Imagem colada.'))
+        return
+      }
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+    // Sem lista de dependencias de proposito: `pickPhoto` le o estado atual do
+    // formulario, entao o ouvinte precisa ser o da renderizacao corrente.
+  })
+
+  /** O aviso da colagem some sozinho — nao e erro, e so confirmacao. */
+  useEffect(() => {
+    if (!pasteNote) return
+    const timer = setTimeout(() => setPasteNote(null), 4000)
+    return () => clearTimeout(timer)
+  }, [pasteNote])
+
+  /** Mesmo efeito do Ctrl+V, para quem esta no celular e nao tem teclado. */
+  const pasteFromClipboard = async () => {
+    try {
+      const items = await navigator.clipboard.read()
+      for (const item of items) {
+        const type = item.types.find((t) => t.startsWith('image/'))
+        if (!type) continue
+        await pickPhoto(new File([await item.getType(type)], 'colado.png', { type }))
+        setPasteNote('Imagem colada.')
+        return
+      }
+      setPasteNote('Não há imagem na área de transferência.')
+    } catch {
+      // Safari e navegadores sem permissao caem aqui: o Ctrl+V continua valendo.
+      setPasteNote('Este navegador não deixa colar por botão — use Ctrl+V.')
+    }
+  }
 
   const pickPhoto = async (file: File) => {
     const id = draft?.id ?? existing?.id ?? newId()
@@ -148,10 +208,22 @@ export default function ExerciseEditor() {
             event.target.value = ''
           }}
         />
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" variant="ghost" onClick={() => fileInput.current?.click()}>
+            Escolher arquivo
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => void pasteFromClipboard()}>
+            Colar imagem
+          </Button>
+        </div>
         <p className="mt-2 px-1 text-[11px] leading-relaxed text-ink-400">
-          Tire uma foto do aparelho da sua academia — fica mais fácil identificar na hora do treino.
-          A imagem é comprimida e funciona offline.
+          Tire uma foto do aparelho da sua academia — ou dê <strong>Ctrl+V</strong> com um print na
+          área de transferência, sem precisar salvar o arquivo antes. A imagem é comprimida e
+          funciona offline.
         </p>
+        {pasteNote && (
+          <p className="mt-1 px-1 text-[11px] font-semibold text-go-400">{pasteNote}</p>
+        )}
       </Section>
 
       <Section title="Nome">
@@ -202,65 +274,47 @@ export default function ExerciseEditor() {
 
       <Section title="Progressão">
         <div className="grid grid-cols-2 gap-2">
-          <label className="block rounded-xl border border-ink-700 bg-ink-850 p-3">
-            <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
-              Reps mínimas
-            </span>
-            <input
-              type="number"
-              inputMode="numeric"
-              value={floor}
-              min={1}
-              onChange={(event) => {
-                const value = Math.max(1, Number(event.target.value) || 1)
-                setFloor(value)
-                setCeiling((current) => Math.max(current, value + 1))
-              }}
-              className="tnum mt-1 w-full bg-transparent text-center text-2xl font-bold outline-none"
-            />
-          </label>
-          <label className="block rounded-xl border border-ink-700 bg-ink-850 p-3">
-            <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
-              Reps máximas
-            </span>
-            <input
-              type="number"
-              inputMode="numeric"
-              value={ceiling}
-              min={2}
-              onChange={(event) => {
-                const value = Math.max(2, Number(event.target.value) || 2)
-                setCeiling(value)
-                setFloor((current) => Math.min(current, value - 1))
-              }}
-              className="tnum mt-1 w-full bg-transparent text-center text-2xl font-bold outline-none"
-            />
-          </label>
+          <NumberField
+            label="Reps mínimas"
+            value={floor}
+            min={1}
+            max={100}
+            onChange={(next) => {
+              setFloor(next)
+              // A faixa precisa ter largura: o ajuste recai sobre o OUTRO campo,
+              // nunca sobre o numero que voce acabou de digitar.
+              setCeiling((current) => (current <= next ? next + 1 : current))
+            }}
+          />
+          <NumberField
+            label="Reps máximas"
+            value={ceiling}
+            min={2}
+            max={100}
+            onChange={(next) => {
+              setCeiling(next)
+              setFloor((current) => (current >= next ? Math.max(1, next - 1) : current))
+            }}
+          />
         </div>
         <div className="mt-2">
-          <label className="block rounded-xl border border-ink-700 bg-ink-850 p-3">
-            <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
-              Salto de carga (kg)
-            </span>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={increment}
-              min={0.5}
-              step={0.5}
-              onChange={(event) =>
-                setIncrement(Math.max(0.5, Number(String(event.target.value).replace(',', '.')) || 0.5))
-              }
-              className="tnum mt-1 w-full bg-transparent text-center text-2xl font-bold outline-none"
-            />
-          </label>
+          <NumberField
+            label="Salto de carga (kg)"
+            value={increment}
+            min={0.5}
+            max={50}
+            step={0.5}
+            decimals
+            format={formatWeight}
+            onChange={setIncrement}
+          />
         </div>
         <p className="mt-2 px-1 text-[11px] leading-relaxed text-ink-400">
           Treine entre <strong className="tnum text-ink-300">{floor}</strong> e{' '}
-          <strong className="tnum text-ink-300">{ceiling}</strong> repetições. Bater{' '}
-          {ceiling} em <em>todas</em> as séries sugere subir{' '}
-          <strong className="tnum text-ink-300">{formatWeight(increment)} kg</strong>; cair abaixo de{' '}
-          {floor} em qualquer série sugere baixar. Se o 1RM estimado estagnar por várias sessões
+          <strong className="tnum text-ink-300">{ceiling}</strong> repetições. Bater {ceiling} em{' '}
+          <em>todas</em> as séries sugere subir{' '}
+          <strong className="tnum text-ink-300">{formatWeight(increment)} kg</strong>; cair abaixo
+          de {floor} em qualquer série sugere baixar. Se o 1RM estimado estagnar por várias sessões
           dentro da faixa, o app sugere um treino mais leve para destravar o platô.
           {group === 'cardio' && ' Exercícios de cardio não recebem essas sugestões.'}
         </p>
