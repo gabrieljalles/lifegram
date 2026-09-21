@@ -15,7 +15,13 @@ import {
   StatTile,
 } from '../components/ui'
 import { usePhotoURL } from '../lib/photo'
-import { formatVolume, formatWeight, suggestProgression, summarizeExercise } from '../lib/stats'
+import {
+  formatVolume,
+  formatWeight,
+  setLabel,
+  suggestProgression,
+  summarizeExercise,
+} from '../lib/stats'
 import { useApp } from '../lib/store'
 import { DEFAULT_REP_CEILING, DEFAULT_REP_FLOOR, DEFAULT_WEIGHT_INCREMENT } from '../lib/types'
 
@@ -199,7 +205,7 @@ export default function ExerciseDetail() {
                               : 'bg-ink-800 text-ink-300'
                           }`}
                         >
-                          {formatWeight(log.weight)}×{log.reps}
+                          {setLabel(log)}
                         </span>
                       ))}
                     </div>

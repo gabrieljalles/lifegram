@@ -13,6 +13,7 @@ import {
   linearTrend,
   parseLocalDate,
   periodDelta,
+  setLabel,
   suggestProgression,
   summarizeExercise,
   timeBreakdown,
@@ -572,5 +573,42 @@ describe('computeScheduleStreak', () => {
     const streak = computeScheduleStreak(sessions, schedule, new Date(2026, 2, 16))
     expect(streak.current).toBe(1)
     expect(streak.missedAt).toBeNull()
+  })
+})
+
+describe('series cronometradas', () => {
+  const timed = (day: string, seconds: number, weight = 0, reps = 0) => ({
+    ...log({ day, weight, reps }),
+    duration_seconds: seconds,
+  })
+
+  it('recorde de uma prancha é o tempo, não o volume', () => {
+    const history = [timed('2026-03-02', 30), timed('2026-03-05', 40)]
+    expect(checkPR(timed('2026-03-08', 45), history).is_pr_volume).toBe(true)
+    expect(checkPR(timed('2026-03-08', 35), history).is_pr_volume).toBe(false)
+  })
+
+  it('primeira vez cronometrada já é recorde', () => {
+    expect(checkPR(timed('2026-03-02', 20), []).is_pr_volume).toBe(true)
+  })
+
+  it('carga também conta quando a prancha tem peso', () => {
+    const history = [timed('2026-03-02', 40, 5)]
+    const comPeso = checkPR(timed('2026-03-05', 40, 10), history)
+    expect(comPeso.is_pr_weight).toBe(true)
+    // Mesmo tempo não é recorde de tempo: empatar não conta.
+    expect(comPeso.is_pr_volume).toBe(false)
+  })
+
+  it('não mistura séries de tempo com séries de repetição', () => {
+    // 40 s valendo "volume" enorme não pode ofuscar um recorde de 12 reps.
+    const history = [timed('2026-03-02', 40, 10), log({ day: '2026-03-03', weight: 20, reps: 10 })]
+    expect(checkPR({ weight: 22, reps: 10, duration_seconds: null }, history).is_pr_weight).toBe(true)
+  })
+
+  it('setLabel escreve tempo em vez de reps', () => {
+    expect(setLabel(timed('2026-03-02', 90))).toBe('1:30')
+    expect(setLabel(timed('2026-03-02', 45, 10))).toBe('10 kg · 0:45')
+    expect(setLabel(log({ day: '2026-03-02', weight: 40, reps: 12 }))).toBe('40×12')
   })
 })

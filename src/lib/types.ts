@@ -72,6 +72,25 @@ export const DEFAULT_SETTINGS: AppSettings = {
   updated_at: '1970-01-01T00:00:00.000Z',
 }
 
+/**
+ * Como o exercicio e medido. `reps` conta repeticoes; `tempo` conta segundos —
+ * prancha, isometria e tudo que e cronometrado em vez de contado.
+ */
+export type ExerciseMeasure = 'reps' | 'tempo'
+
+/**
+ * Bloco de um exercicio composto (intervalado): "20 s no talo", "2 min solto".
+ * A serie e uma passada pela sequencia inteira, na ordem.
+ */
+export interface ExerciseSegment {
+  label: string
+  seconds: number
+}
+
+/** Soma dos blocos: quanto dura uma serie do exercicio composto. */
+export const segmentsDuration = (segments: ExerciseSegment[]): number =>
+  segments.reduce((total, segment) => total + Math.max(0, segment.seconds), 0)
+
 export interface Exercise {
   id: ID
   user_id: string | null
@@ -82,6 +101,13 @@ export interface Exercise {
   /** Chave do blob local em IndexedDB — a foto funciona offline por aqui. */
   photo_local_key: string | null
   default_rest_seconds: number
+  /** Repeticoes ou segundos — muda o que a tela do treino pergunta. */
+  measure: ExerciseMeasure
+  /**
+   * Blocos cronometrados de um exercicio composto. Lista vazia = exercicio
+   * simples (uma contagem so). So faz sentido com `measure: 'tempo'`.
+   */
+  segments: ExerciseSegment[]
   /** Piso da faixa de reps: cair abaixo dele sugere baixar a carga. */
   rep_floor: number
   /** Teto da faixa de reps: ao bater em todas as series, o app sugere subir a carga. */
@@ -139,6 +165,11 @@ export interface SetLog {
   exercise_id: ID
   set_number: number
   reps: number
+  /**
+   * Segundos efetivamente cronometrados. null nos exercicios por repeticao —
+   * e o que separa "12 reps" de "40 segundos" sem sobrecarregar `reps`.
+   */
+  duration_seconds: number | null
   weight: number
   completed_at: string
   /**
@@ -180,9 +211,12 @@ export interface ActiveWorkout {
 export interface ActiveItem {
   exercise_id: ID
   target_sets: number
+  /** Em exercicio de tempo, e o alvo em SEGUNDOS. */
   target_reps: number
   target_weight: number
   rest_seconds: number
+  measure: ExerciseMeasure
+  segments: ExerciseSegment[]
 }
 
 /** Peso corporal, registrado no maximo uma vez por semana (lembrete no Inicio). */

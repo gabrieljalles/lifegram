@@ -7,7 +7,7 @@ import {
   formatClock,
   formatDuration,
   formatVolume,
-  formatWeight,
+  setLabel,
   timeBreakdown,
   totalVolume,
 } from '../lib/stats'
@@ -175,7 +175,7 @@ export default function WorkoutSummary() {
                     {exerciseById.get(log.exercise_id)?.name ?? 'Exercício'}
                   </p>
                   <p className="tnum text-xs text-ink-400">
-                    {formatWeight(log.weight)} kg × {log.reps} ·{' '}
+                    {setLabel(log, { withUnit: true })} ·{' '}
                     {log.is_pr_weight ? 'recorde de carga' : 'recorde de volume'}
                   </p>
                 </div>
@@ -208,7 +208,7 @@ export default function WorkoutSummary() {
                             : 'bg-ink-800 text-ink-300'
                         }`}
                       >
-                        {formatWeight(log.weight)}×{log.reps}
+                        {setLabel(log)}
                       </span>
                     ))}
                   </div>

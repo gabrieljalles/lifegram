@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import PRCelebration from '../components/PRCelebration'
@@ -8,9 +8,11 @@ import { usePhotoURL } from '../lib/photo'
 import {
   bestSet,
   compareSets,
+  formatClock,
   formatDuration,
   formatVolume,
   formatWeight,
+  setLabel,
   suggestProgression,
   totalVolume,
 } from '../lib/stats'
@@ -19,9 +21,11 @@ import {
   DEFAULT_REP_CEILING,
   DEFAULT_REP_FLOOR,
   DEFAULT_WEIGHT_INCREMENT,
+  segmentsDuration,
+  type ExerciseSegment,
   type SetLog,
 } from '../lib/types'
-import { useElapsed, useWakeLock } from '../lib/timer'
+import { beepDone, beepTick, useElapsed, useWakeLock, vibrate } from '../lib/timer'
 import {
   abandonWorkout,
   adjustRest,
@@ -43,6 +47,8 @@ export default function ActiveWorkout() {
 
   const [weight, setWeight] = useState(0)
   const [reps, setReps] = useState(0)
+  /** Instante em que o cronometro da serie comecou; null = parado. */
+  const [timerStart, setTimerStart] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [celebration, setCelebration] = useState<{ label: string; detail: string } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -54,12 +60,16 @@ export default function ActiveWorkout() {
   // A tela nao pode apagar no meio da serie.
   useWakeLock(Boolean(active))
   const elapsed = useElapsed(active?.started_at)
+  /** Segundos da serie cronometrada em andamento. */
+  const setElapsed = useElapsed(timerStart)
 
   // Cada serie comeca do alvo planejado; ajustes valem so para a serie atual.
   useEffect(() => {
     if (!item) return
     setWeight(item.target_weight)
     setReps(item.target_reps)
+    // Serie nova comeca com o cronometro zerado, nunca herdando a anterior.
+    setTimerStart(null)
   }, [item?.exercise_id, active?.set_number, active?.cursor])
 
   /** Todo o historico do exercicio antes desta sessao — base da comparacao e da recomendacao. */
@@ -147,14 +157,27 @@ export default function ActiveWorkout() {
     if (busy) return
     setBusy(true)
     try {
-      const result = await completeSet(active, { weight, reps })
+      // No modo tempo o que vale e o cronometro; sem ele ter rodado, cai no
+      // alvo planejado (voce fez o tempo sem usar o cronometro da tela).
+      const seconds = timed ? Math.round(setElapsed > 0 ? setElapsed : targetSeconds) : null
+      const result = await completeSet(active, {
+        weight,
+        reps: timed ? 0 : reps,
+        duration_seconds: seconds,
+      })
       // A carga que voce realmente usou vira o alvo da proxima vez.
-      await rememberLoad(active.routine_id, item.exercise_id, weight, reps)
+      await rememberLoad(active.routine_id, item.exercise_id, weight, timed ? (seconds ?? 0) : reps)
 
       if (result.isPR) {
         setCelebration({
-          label: result.log.is_pr_weight ? 'Novo recorde de carga!' : 'Novo recorde de volume!',
-          detail: `${exercise.name} · ${formatWeight(weight)} kg × ${reps}`,
+          label: result.log.is_pr_weight
+            ? 'Novo recorde de carga!'
+            : timed
+              ? 'Novo recorde de tempo!'
+              : 'Novo recorde de volume!',
+          detail: timed
+            ? `${exercise.name} · ${formatClock(seconds ?? 0)}`
+            : `${exercise.name} · ${formatWeight(weight)} kg × ${reps}`,
         })
       }
 
@@ -179,6 +202,14 @@ export default function ActiveWorkout() {
     await fn()
     await reload()
   }
+
+  const timed = item.measure === 'tempo'
+  /** Alvo em segundos: a soma dos blocos manda no composto. */
+  const targetSeconds = timed
+    ? item.segments.length > 0
+      ? segmentsDuration(item.segments)
+      : item.target_reps
+    : 0
 
   /** O exercicio da vez e um que voltou da fila de adiados. */
   const isPostponed = active.postponed.includes(item.exercise_id)
@@ -332,20 +363,32 @@ export default function ActiveWorkout() {
             bigStep={WEIGHT_BIG_STEP}
             onBigStep={(delta) => setWeight((w) => Math.round((w + delta) * 10) / 10)}
           />
-          <Stepper
-            label="Repetições"
-            unit="reps"
-            value={String(reps)}
-            onDecrease={() => setReps((r) => Math.max(1, r - 1))}
-            onIncrease={() => setReps((r) => r + 1)}
-            onSet={(raw) => setReps(Math.max(1, Math.round(raw)))}
-            raw={reps}
-            step={1}
-          />
+          {timed ? (
+            <TimedSet
+              elapsed={setElapsed}
+              target={targetSeconds}
+              segments={item.segments}
+              running={timerStart !== null}
+              onStart={() => setTimerStart(new Date().toISOString())}
+              onReset={() => setTimerStart(null)}
+            />
+          ) : (
+            <Stepper
+              label="Repetições"
+              unit="reps"
+              value={String(reps)}
+              onDecrease={() => setReps((r) => Math.max(1, r - 1))}
+              onIncrease={() => setReps((r) => r + 1)}
+              onSet={(raw) => setReps(Math.max(1, Math.round(raw)))}
+              raw={reps}
+              step={1}
+            />
+          )}
         </div>
 
         {/* A sugestao some sozinha quando a carga ja foi ajustada na direcao certa. */}
-        {suggestion &&
+        {!timed &&
+          suggestion &&
           (suggestion.action === 'increase'
             ? weight < suggestion.weight
             : weight > suggestion.weight) && (
@@ -397,8 +440,16 @@ export default function ActiveWorkout() {
           nextLabel={nextExercise?.name ?? 'Próximo exercício'}
           nextDetail={
             nextIsNewExercise
-              ? `${nextItem.target_sets} séries × ${nextItem.target_reps} reps · ${formatWeight(nextItem.target_weight)} kg`
-              : `Série ${active.set_number} de ${nextItem.target_sets} · ${formatWeight(nextItem.target_weight)} kg × ${nextItem.target_reps}`
+              ? `${nextItem.target_sets} séries × ${
+                  nextItem.measure === 'tempo'
+                    ? formatClock(
+                        nextItem.segments.length > 0
+                          ? segmentsDuration(nextItem.segments)
+                          : nextItem.target_reps,
+                      )
+                    : `${nextItem.target_reps} reps`
+                }${nextItem.target_weight !== 0 ? ` · ${formatWeight(nextItem.target_weight)} kg` : ''}`
+              : `Série ${active.set_number} de ${nextItem.target_sets}`
           }
           onAdjust={(delta) =>
             void (async () => {
@@ -477,7 +528,7 @@ function LastSessionPanel({
             key={log.id}
             className="rounded-lg bg-ink-800 px-2 py-0.5 text-xs font-semibold text-ink-200"
           >
-            {formatWeight(log.weight)} kg × {log.reps}
+            {setLabel(log, { withUnit: true })}
           </span>
         ))}
       </div>
@@ -654,5 +705,108 @@ function StepButton({
     >
       {children}
     </button>
+  )
+}
+
+/**
+ * Cronometro da serie, para exercicios medidos em tempo.
+ *
+ * Duas formas no mesmo componente:
+ * - simples: uma contagem so ate o alvo (prancha de 40 s);
+ * - composto: percorre os blocos na ordem, anunciando cada troca com apito e
+ *   vibracao — voce nao precisa olhar a tela no meio do tiro.
+ *
+ * A contagem vem de `elapsed`, que e calculado a partir do instante de inicio
+ * (nao de um contador que decrementa), entao bloquear a tela no meio da serie
+ * nao atrasa nada.
+ */
+function TimedSet({
+  elapsed,
+  target,
+  segments,
+  running,
+  onStart,
+  onReset,
+}: {
+  elapsed: number
+  target: number
+  segments: ExerciseSegment[]
+  running: boolean
+  onStart: () => void
+  onReset: () => void
+}) {
+  const done = running && elapsed >= target
+
+  /** Em qual bloco a contagem esta e quanto falta nele. */
+  const current = (() => {
+    if (segments.length === 0) return null
+    let acc = 0
+    for (let index = 0; index < segments.length; index++) {
+      const segment = segments[index]
+      if (elapsed < acc + segment.seconds) {
+        return { index, segment, remaining: acc + segment.seconds - elapsed, next: segments[index + 1] ?? null }
+      }
+      acc += segment.seconds
+    }
+    return null
+  })()
+
+  // Apito e vibracao a cada troca de bloco e no fim da serie.
+  const announced = useRef<number | null>(null)
+  useEffect(() => {
+    if (!running) {
+      announced.current = null
+      return
+    }
+    const marker = current ? current.index : -1
+    if (announced.current === marker) return
+    // O primeiro bloco nao apita: voce acabou de tocar em "Iniciar".
+    if (announced.current !== null) {
+      if (marker === -1) {
+        beepDone()
+        vibrate([200, 80, 200])
+      } else {
+        beepTick()
+        vibrate(120)
+      }
+    }
+    announced.current = marker
+  }, [running, current?.index, done])
+
+  const remaining = Math.max(0, target - elapsed)
+
+  return (
+    <div className="col-span-1 rounded-2xl border border-ink-700 bg-ink-850 p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+        {current ? current.segment.label : 'Tempo'}
+      </p>
+
+      <p
+        className={`tnum mt-0.5 text-center text-4xl font-extrabold leading-none ${
+          done ? 'text-go-400' : 'text-ink-50'
+        }`}
+      >
+        {formatClock(current ? current.remaining : remaining)}
+      </p>
+
+      <p className="mt-1 text-center text-[11px] text-ink-400">
+        {current
+          ? `bloco ${current.index + 1}/${segments.length}${current.next ? ` · depois: ${current.next.label}` : ' · último'}`
+          : running
+            ? done
+              ? `${formatClock(elapsed)} no total`
+              : `alvo ${formatClock(target)}`
+            : `alvo ${formatClock(target)}`}
+      </p>
+
+      <Button
+        className="mt-2 w-full"
+        size="sm"
+        variant={running ? 'ghost' : 'primary'}
+        onClick={running ? onReset : onStart}
+      >
+        {running ? 'Reiniciar' : 'Iniciar'}
+      </Button>
+    </div>
   )
 }

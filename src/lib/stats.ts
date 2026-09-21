@@ -374,6 +374,23 @@ export function timeBreakdown(
   }
 }
 
+/**
+ * Como uma serie se escreve numa linha: "40 kg x 12" ou "1:30" quando e
+ * cronometrada. Uma funcao so para as quatro telas nao divergirem.
+ */
+export function setLabel(
+  log: Pick<SetLog, 'reps' | 'weight'> & { duration_seconds?: number | null },
+  { withUnit = false } = {},
+): string {
+  const seconds = log.duration_seconds ?? null
+  if (seconds !== null) {
+    return log.weight !== 0 ? `${formatWeight(log.weight)} kg · ${formatClock(seconds)}` : formatClock(seconds)
+  }
+  return withUnit
+    ? `${formatWeight(log.weight)} kg × ${log.reps}`
+    : `${formatWeight(log.weight)}×${log.reps}`
+}
+
 /* ------------------------------------------------------------- recordes */
 
 export interface PRCheck {
@@ -381,20 +398,40 @@ export interface PRCheck {
   is_pr_volume: boolean
 }
 
+type PRInput = Pick<SetLog, 'reps' | 'weight'> & { duration_seconds?: number | null }
+
 /**
  * Compara uma serie recem-feita com todo o historico anterior do exercicio.
  * Empatar nao conta como recorde: o recorde tem que ser superado.
+ *
+ * Exercicio cronometrado tem outra regra: o recorde e o TEMPO (prancha mais
+ * longa), e a carga so entra quando ha carga — prancha com colete que dura o
+ * mesmo tempo com mais peso tambem e recorde.
  */
-export function checkPR(
-  candidate: Pick<SetLog, 'reps' | 'weight'>,
-  history: Array<Pick<SetLog, 'reps' | 'weight'>>,
-): PRCheck {
+export function checkPR(candidate: PRInput, history: PRInput[]): PRCheck {
+  const timed = (candidate.duration_seconds ?? null) !== null
+  if (timed) {
+    const seconds = candidate.duration_seconds as number
+    if (seconds <= 0) return { is_pr_weight: false, is_pr_volume: false }
+    const past = history.filter((log) => (log.duration_seconds ?? null) !== null)
+    const bestTime = past.length
+      ? Math.max(...past.map((log) => log.duration_seconds as number))
+      : -Infinity
+    const bestWeight = past.length ? Math.max(...past.map((log) => log.weight)) : -Infinity
+    return {
+      is_pr_weight: candidate.weight !== 0 && candidate.weight > bestWeight,
+      is_pr_volume: seconds > bestTime,
+    }
+  }
+
   if (candidate.weight === 0 || candidate.reps <= 0) {
     return { is_pr_weight: false, is_pr_volume: false }
   }
+  // Series cronometradas nao entram: comparar 40 s com 12 reps nao significa nada.
+  const past = history.filter((log) => (log.duration_seconds ?? null) === null)
   // -Infinity (nao 0): carga assistida (negativa) tambem precisa contar como recorde na primeira vez.
-  const bestWeight = history.length ? Math.max(...history.map((l) => l.weight)) : -Infinity
-  const bestVolume = history.length ? Math.max(...history.map(setVolume)) : -Infinity
+  const bestWeight = past.length ? Math.max(...past.map((l) => l.weight)) : -Infinity
+  const bestVolume = past.length ? Math.max(...past.map(setVolume)) : -Infinity
   return {
     is_pr_weight: candidate.weight > bestWeight,
     is_pr_volume: setVolume(candidate) > bestVolume,

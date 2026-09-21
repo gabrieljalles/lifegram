@@ -20,7 +20,10 @@ import {
   MUSCLE_GROUPS,
   newId,
   nowISO,
+  segmentsDuration,
   type Exercise,
+  type ExerciseMeasure,
+  type ExerciseSegment,
   type MuscleGroup,
 } from '../../lib/types'
 
@@ -42,6 +45,8 @@ export default function ExerciseEditor() {
   const [floor, setFloor] = useState(DEFAULT_REP_FLOOR)
   const [ceiling, setCeiling] = useState(DEFAULT_REP_CEILING)
   const [increment, setIncrement] = useState(DEFAULT_WEIGHT_INCREMENT)
+  const [measure, setMeasure] = useState<ExerciseMeasure>('reps')
+  const [segments, setSegments] = useState<ExerciseSegment[]>([])
   const [draft, setDraft] = useState<Exercise | null>(null)
   const [saving, setSaving] = useState(false)
   const [pasteNote, setPasteNote] = useState<string | null>(null)
@@ -55,6 +60,8 @@ export default function ExerciseEditor() {
       setFloor(existing.rep_floor ?? DEFAULT_REP_FLOOR)
       setCeiling(existing.rep_ceiling ?? DEFAULT_REP_CEILING)
       setIncrement(existing.weight_increment ?? DEFAULT_WEIGHT_INCREMENT)
+      setMeasure(existing.measure ?? 'reps')
+      setSegments(existing.segments ?? [])
       setDraft(existing)
     }
   }, [existing?.id, existing?.photo_local_key])
@@ -128,6 +135,8 @@ export default function ExerciseEditor() {
           photo_url: null,
           photo_local_key: null,
           default_rest_seconds: rest,
+          measure,
+          segments,
           rep_floor: floor,
           rep_ceiling: ceiling,
           weight_increment: increment,
@@ -157,6 +166,10 @@ export default function ExerciseEditor() {
       photo_url: draft?.photo_url ?? existing?.photo_url ?? null,
       photo_local_key: draft?.photo_local_key ?? existing?.photo_local_key ?? null,
       default_rest_seconds: rest,
+      measure,
+      // Bloco so existe em exercicio de tempo: trocar para reps limpa a lista
+      // em vez de deixar dado fantasma esperando para reaparecer.
+      segments: measure === 'tempo' ? segments : [],
       rep_floor: floor,
       rep_ceiling: ceiling,
       weight_increment: increment,
@@ -272,13 +285,56 @@ export default function ExerciseEditor() {
         </p>
       </Section>
 
+      <Section title="Como medir">
+        <div className="flex gap-2">
+          {(['reps', 'tempo'] as ExerciseMeasure[]).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                setMeasure(option)
+                // 8 a 12 SEGUNDOS nao e faixa de prancha nenhuma. Ao trocar de
+                // modo, os padroes viram os da nova unidade — mas so quando os
+                // valores ainda sao os de fabrica, para nao apagar sua escolha.
+                if (option === 'tempo' && floor === DEFAULT_REP_FLOOR && ceiling === DEFAULT_REP_CEILING) {
+                  setFloor(30)
+                  setCeiling(60)
+                }
+                if (option === 'reps' && floor === 30 && ceiling === 60) {
+                  setFloor(DEFAULT_REP_FLOOR)
+                  setCeiling(DEFAULT_REP_CEILING)
+                }
+              }}
+              className={`flex-1 rounded-xl border px-3 py-3 text-sm font-semibold transition ${
+                measure === option
+                  ? 'border-brand-500 bg-brand-600/20 text-brand-300'
+                  : 'border-ink-700 bg-ink-850 text-ink-400'
+              }`}
+            >
+              {option === 'reps' ? 'Repetições' : 'Tempo (s)'}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 px-1 text-[11px] leading-relaxed text-ink-400">
+          {measure === 'reps'
+            ? 'Você conta as repetições de cada série, como em supino ou rosca.'
+            : 'A série é cronometrada — prancha, isometria, bicicleta. Na tela do treino aparece um cronômetro no lugar do contador de repetições.'}
+        </p>
+      </Section>
+
+      {measure === 'tempo' && (
+        <Section title="Blocos (exercício composto)">
+          <SegmentEditor segments={segments} onChange={setSegments} />
+        </Section>
+      )}
+
       <Section title="Progressão">
         <div className="grid grid-cols-2 gap-2">
           <NumberField
-            label="Reps mínimas"
+            label={measure === 'tempo' ? 'Tempo mínimo (s)' : 'Reps mínimas'}
             value={floor}
             min={1}
-            max={100}
+            max={600}
             onChange={(next) => {
               setFloor(next)
               // A faixa precisa ter largura: o ajuste recai sobre o OUTRO campo,
@@ -287,10 +343,10 @@ export default function ExerciseEditor() {
             }}
           />
           <NumberField
-            label="Reps máximas"
+            label={measure === 'tempo' ? 'Tempo máximo (s)' : 'Reps máximas'}
             value={ceiling}
             min={2}
-            max={100}
+            max={600}
             onChange={(next) => {
               setCeiling(next)
               setFloor((current) => (current >= next ? Math.max(1, next - 1) : current))
@@ -311,7 +367,8 @@ export default function ExerciseEditor() {
         </div>
         <p className="mt-2 px-1 text-[11px] leading-relaxed text-ink-400">
           Treine entre <strong className="tnum text-ink-300">{floor}</strong> e{' '}
-          <strong className="tnum text-ink-300">{ceiling}</strong> repetições. Bater {ceiling} em{' '}
+          <strong className="tnum text-ink-300">{ceiling}</strong>{' '}
+          {measure === 'tempo' ? 'segundos' : 'repetições'}. Bater {ceiling} em{' '}
           <em>todas</em> as séries sugere subir{' '}
           <strong className="tnum text-ink-300">{formatWeight(increment)} kg</strong>; cair abaixo
           de {floor} em qualquer série sugere baixar. Se o 1RM estimado estagnar por várias sessões
@@ -342,6 +399,116 @@ export default function ExerciseEditor() {
           <Button variant="danger" onClick={archive}>
             Arquivar exercício
           </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Montagem dos blocos de um exercicio composto.
+ *
+ * A soma aparece o tempo todo porque e o numero que voce realmente quer
+ * controlar: "meu intervalado tem que caber em 10 minutos".
+ */
+function SegmentEditor({
+  segments,
+  onChange,
+}: {
+  segments: ExerciseSegment[]
+  onChange: (segments: ExerciseSegment[]) => void
+}) {
+  const total = segmentsDuration(segments)
+
+  const update = (index: number, patch: Partial<ExerciseSegment>) =>
+    onChange(segments.map((segment, i) => (i === index ? { ...segment, ...patch } : segment)))
+
+  const move = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= segments.length) return
+    const next = [...segments]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    onChange(next)
+  }
+
+  return (
+    <div>
+      {segments.length === 0 ? (
+        <p className="px-1 text-[11px] leading-relaxed text-ink-400">
+          Sem blocos, a série é uma contagem única (prancha de 40 s, por exemplo). Adicione blocos
+          para montar um intervalado — o app percorre a sequência sozinho, avisando a cada troca.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {segments.map((segment, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-2 rounded-xl border border-ink-700 bg-ink-850 p-2.5"
+            >
+              <span className="tnum w-5 shrink-0 text-center text-xs font-bold text-ink-400">
+                {index + 1}
+              </span>
+              <input
+                value={segment.label}
+                onChange={(event) => update(index, { label: event.target.value })}
+                placeholder="Tiro forte"
+                className="min-w-0 flex-1 rounded-lg border border-ink-700 bg-ink-800 px-2.5 py-2 text-sm outline-none focus:border-brand-500"
+              />
+              <input
+                type="text"
+                inputMode="numeric"
+                value={String(segment.seconds)}
+                onChange={(event) => {
+                  const parsed = Number.parseInt(event.target.value.replace(/\D/g, ''), 10)
+                  update(index, { seconds: Number.isFinite(parsed) ? parsed : 0 })
+                }}
+                aria-label={`Segundos do bloco ${index + 1}`}
+                className="tnum w-16 shrink-0 rounded-lg border border-ink-700 bg-ink-800 px-2 py-2 text-center text-sm font-semibold outline-none focus:border-brand-500"
+              />
+              <span className="shrink-0 text-[11px] text-ink-400">s</span>
+              <div className="flex shrink-0 flex-col">
+                <button
+                  type="button"
+                  aria-label={`Subir bloco ${index + 1}`}
+                  onClick={() => move(index, -1)}
+                  className="px-1 text-xs text-ink-400 active:text-ink-100"
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Descer bloco ${index + 1}`}
+                  onClick={() => move(index, 1)}
+                  className="px-1 text-xs text-ink-400 active:text-ink-100"
+                >
+                  ▼
+                </button>
+              </div>
+              <button
+                type="button"
+                aria-label={`Remover bloco ${index + 1}`}
+                onClick={() => onChange(segments.filter((_, i) => i !== index))}
+                className="shrink-0 px-1.5 text-sm text-fire-400"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-2 flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onChange([...segments, { label: `Bloco ${segments.length + 1}`, seconds: 30 }])}
+        >
+          + Bloco
+        </Button>
+        {segments.length > 0 && (
+          <span className="tnum text-xs text-ink-400">
+            Série completa: {formatClock(total)}
+          </span>
         )}
       </div>
     </div>

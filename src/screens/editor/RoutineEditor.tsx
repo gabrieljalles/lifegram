@@ -19,6 +19,7 @@ import {
   WEEKDAYS,
   newId,
   nowISO,
+  segmentsDuration,
   type Exercise,
   type MuscleGroup,
   type RoutineExercise,
@@ -69,7 +70,14 @@ export default function RoutineEditor() {
       exercise_id: exercise.id,
       position: nextPosition,
       target_sets: 3,
-      target_reps: 10,
+      // Exercicio de tempo entra com o teto dele em segundos; composto usa a
+      // soma dos blocos. Herdar "10 reps" daria uma prancha de 10 segundos.
+      target_reps:
+        exercise.measure === 'tempo'
+          ? exercise.segments.length > 0
+            ? segmentsDuration(exercise.segments)
+            : exercise.rep_ceiling
+          : 10,
       target_weight: 0,
       rest_seconds: null,
       updated_at: nowISO(),
@@ -231,6 +239,7 @@ function RoutineItem({
 }) {
   const photo = usePhotoURL(exercise)
   const rest = entry.rest_seconds ?? exercise?.default_rest_seconds ?? 90
+  const timed = exercise?.measure === 'tempo'
 
   if (!exercise) return null
 
@@ -267,9 +276,10 @@ function RoutineItem({
           onChange={(value) => onUpdate({ target_sets: value })}
         />
         <NumberField
-          label="Reps"
+          label={timed ? 'Tempo s' : 'Reps'}
           value={entry.target_reps}
           min={1}
+          step={timed ? 5 : 1}
           onChange={(value) => onUpdate({ target_reps: value })}
         />
         <NumberField

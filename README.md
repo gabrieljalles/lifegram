@@ -97,6 +97,21 @@ Os dados saem em **CSV ou JSON** pelo painel (`/coragem/painel`), que também
 traz a média das notas ao longo do tempo, tentativas por semana com linha de
 meta (padrão 3, configurável ali mesmo) e a distribuição de objetivos por nota.
 
+## Exercícios por tempo e compostos
+
+Cada exercício escolhe **como é medido**: repetições (padrão) ou **tempo**. No
+modo tempo, a tela do treino troca o contador de repetições por um cronômetro,
+a faixa de progressão passa a ser lida em segundos e o recorde é a **maior
+duração** — com a carga entrando à parte, para prancha com peso.
+
+Um exercício de tempo pode ainda ter **blocos**, e aí vira composto: a série é
+uma passada pela sequência (ex.: 2 min aquecendo → 20 s no talo → 2 min solto),
+com apito e vibração a cada troca. O app mostra o bloco atual, quanto falta nele
+e qual vem depois, então dá para pedalar sem olhar a tela.
+
+Séries cronometradas não entram no volume em kg nem se misturam com séries de
+repetição na hora de comparar recordes — 40 s e 12 reps não são a mesma grandeza.
+
 ## Agenda da semana
 
 Cada treino pode ser marcado para dias fixos da semana (no editor do treino), e

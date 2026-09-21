@@ -17,6 +17,10 @@ create table if not exists public.exercises (
   -- de baixar/subir a carga, e o menor salto de peso executavel no equipamento.
   rep_floor            integer not null default 8,
   rep_ceiling          integer not null default 12,
+  -- reps = conta repeticoes; tempo = serie cronometrada (prancha, bicicleta).
+  measure              text not null default 'reps' check (measure in ('reps', 'tempo')),
+  -- Blocos do exercicio composto: [{label, seconds}, ...]. Vazio = contagem unica.
+  segments             jsonb not null default '[]'::jsonb,
   weight_increment     numeric not null default 1,
   notes                text,
   archived             boolean not null default false,
@@ -65,6 +69,8 @@ create table if not exists public.set_logs (
   exercise_id         uuid not null references public.exercises (id) on delete cascade,
   set_number          integer not null,
   reps                integer not null,
+  -- Duracao real da serie cronometrada; nulo quando a serie e por repeticao.
+  duration_seconds    integer check (duration_seconds is null or duration_seconds >= 0),
   weight              numeric not null,
   completed_at        timestamptz not null,
   rest_taken_seconds  integer not null default 0,

@@ -51,6 +51,8 @@ export async function startWorkout(routine: Routine): Promise<ActiveWorkout> {
       target_sets: Math.max(1, entry.target_sets),
       target_reps: Math.max(1, entry.target_reps),
       target_weight: entry.target_weight,
+      measure: exercise.measure,
+      segments: exercise.segments,
       rest_seconds: entry.rest_seconds ?? exercise.default_rest_seconds ?? DEFAULT_REST_SECONDS,
     })
   }
@@ -107,13 +109,14 @@ export interface CompletedSet {
  */
 export async function completeSet(
   active: ActiveWorkout,
-  input: { weight: number; reps: number },
+  input: { weight: number; reps: number; duration_seconds?: number | null },
 ): Promise<CompletedSet> {
   const item = active.items[active.cursor]
   const completed_at = nowISO()
 
+  const duration_seconds = input.duration_seconds ?? null
   const history = await setLogsOfExercise(item.exercise_id)
-  const pr = checkPR(input, history)
+  const pr = checkPR({ ...input, duration_seconds }, history)
 
   const log: SetLog = {
     id: newId(),
@@ -122,6 +125,7 @@ export async function completeSet(
     exercise_id: item.exercise_id,
     set_number: active.set_number,
     reps: input.reps,
+    duration_seconds,
     weight: input.weight,
     completed_at,
     // Descanso real medido antes desta serie (0 na primeira do treino).
@@ -417,6 +421,8 @@ export async function seedStarterData(): Promise<void> {
         photo_url: null,
         photo_local_key: null,
         default_rest_seconds: DEFAULT_REST_SECONDS,
+        measure: 'reps',
+        segments: [],
         rep_floor: DEFAULT_REP_FLOOR,
         rep_ceiling: DEFAULT_REP_CEILING,
         weight_increment: DEFAULT_WEIGHT_INCREMENT,

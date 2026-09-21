@@ -139,12 +139,20 @@ export async function putExercise(ex: Exercise, { sync = true } = {}) {
   if (sync) await enqueue('exercises', ex.id)
 }
 
+/** Exercicio criado antes do modo tempo: assume repeticao e sem blocos. */
+const withMeasure = (ex: Exercise): Exercise => ({
+  ...ex,
+  measure: ex.measure ?? 'reps',
+  segments: ex.segments ?? [],
+})
+
 export async function getExercise(id: ID): Promise<Exercise | undefined> {
-  return (await db()).get('exercises', id)
+  const found = await (await db()).get('exercises', id)
+  return found ? withMeasure(found) : undefined
 }
 
 export async function allExercises(includeArchived = false): Promise<Exercise[]> {
-  const rows = await (await db()).getAll('exercises')
+  const rows = (await (await db()).getAll('exercises')).map(withMeasure)
   return rows
     .filter((e) => includeArchived || !e.archived)
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
