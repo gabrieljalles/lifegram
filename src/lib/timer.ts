@@ -1,142 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
 
-/* ----------------------------------------------------------------- som */
-
-let audioCtx: AudioContext | null = null
-
-type AudioCtor = typeof AudioContext
-
-function ctor(): AudioCtor | undefined {
-  const w = window as unknown as { AudioContext?: AudioCtor; webkitAudioContext?: AudioCtor }
-  return w.AudioContext ?? w.webkitAudioContext
-}
+/* ------------------------------------------------------------- vibracao */
 
 /**
- * iOS/Android so deixam tocar audio depois de um toque do usuario. Chamamos
- * isso no botao de iniciar treino, para que o apito do fim do descanso
- * funcione mesmo com o celular no bolso.
+ * O app nao toca som nenhum de proposito: qualquer audio, ate um bipe curto,
+ * rouba o foco de audio do sistema e abaixa a musica de quem treina ouvindo
+ * algo. O aviso de descanso fica por conta da vibracao e da notificacao.
  */
-export function unlockAudio() {
-  const Ctx = ctor()
-  if (!Ctx) return
-  if (!audioCtx) audioCtx = new Ctx()
-  if (audioCtx.state === 'suspended') void audioCtx.resume()
-
-  const buffer = audioCtx.createBuffer(1, 1, 22050)
-  const source = audioCtx.createBufferSource()
-  source.buffer = buffer
-  source.connect(audioCtx.destination)
-  source.start(0)
-}
-
-function tone(frequency: number, startAt: number, duration: number, gainValue = 0.22) {
-  if (!audioCtx) return
-  const osc = audioCtx.createOscillator()
-  const gain = audioCtx.createGain()
-  osc.type = 'sine'
-  osc.frequency.value = frequency
-
-  // Envelope curto: sem a rampa, o alto-falante estala no corte.
-  gain.gain.setValueAtTime(0.0001, startAt)
-  gain.gain.exponentialRampToValueAtTime(gainValue, startAt + 0.015)
-  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration)
-
-  osc.connect(gain)
-  gain.connect(audioCtx.destination)
-  osc.start(startAt)
-  osc.stop(startAt + duration + 0.02)
-}
-
-/** Bipe curto da contagem regressiva final (3, 2, 1). */
-export function beepTick() {
-  if (!audioCtx) return
-  tone(660, audioCtx.currentTime, 0.09, 0.14)
-}
-
-/** Sinal de fim de descanso: tres notas subindo, para ouvir de longe. */
-export function beepDone() {
-  if (!audioCtx) return
-  const t = audioCtx.currentTime
-  tone(784, t, 0.14)
-  tone(988, t + 0.16, 0.14)
-  tone(1319, t + 0.32, 0.3)
-}
-
 export function vibrate(pattern: number | number[]) {
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
     try {
       navigator.vibrate(pattern)
     } catch {
-      // Safari/iOS nao suporta: o bipe ja cobre o aviso.
+      // Safari/iOS nao suporta: sobra a notificacao do sistema.
     }
   }
 }
 
-/* ------------------------------------------- manter o app vivo no bolso */
-
-let keepAliveEl: HTMLAudioElement | null = null
-let silentURL: string | null = null
-
-/** Gera, na memoria, um WAV de 1 segundo de silencio — sem arquivo externo. */
-function silentWavURL(): string {
-  if (silentURL) return silentURL
-
-  const sampleRate = 8000
-  const samples = sampleRate // 1 segundo
-  const buffer = new ArrayBuffer(44 + samples * 2)
-  const view = new DataView(buffer)
-  const ascii = (offset: number, text: string) => {
-    for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i))
-  }
-
-  ascii(0, 'RIFF')
-  view.setUint32(4, 36 + samples * 2, true)
-  ascii(8, 'WAVEfmt ')
-  view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true) // PCM
-  view.setUint16(22, 1, true) // mono
-  view.setUint32(24, sampleRate, true)
-  view.setUint32(28, sampleRate * 2, true)
-  view.setUint16(32, 2, true)
-  view.setUint16(34, 16, true)
-  ascii(36, 'data')
-  view.setUint32(40, samples * 2, true)
-  // As amostras ficam em zero: silencio puro.
-
-  silentURL = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }))
-  return silentURL
-}
-
-/**
- * Toca um silencio em loop durante o descanso.
- *
- * Nao e gambiarra gratuita: o navegador congela os temporizadores de uma aba
- * em segundo plano, mas NAO congela uma pagina que esta reproduzindo midia.
- * E isso que faz o alarme tocar com a tela apagada e o celular no bolso.
+/*
+ * Aqui existia um truque de manter o app vivo tocando um WAV silencioso em
+ * loop durante o descanso: navegador nao congela pagina que toca midia, entao
+ * o alarme sobrevivia com a tela apagada. Foi removido de proposito — mesmo
+ * mudo, reproduzir midia toma o foco de audio do sistema e abaixa a musica.
+ * Em troca, o aviso de fim de descanso pode atrasar com o app em segundo
+ * plano; a notificacao continua sendo o caminho para avisar de fora da tela.
  */
-export function startKeepAlive() {
-  try {
-    if (!keepAliveEl) {
-      keepAliveEl = new Audio(silentWavURL())
-      keepAliveEl.loop = true
-      keepAliveEl.volume = 0.001
-      keepAliveEl.setAttribute('playsinline', 'true')
-    }
-    void keepAliveEl.play().catch(() => {
-      // Sem gesto previo do usuario o navegador recusa: seguimos sem isso.
-    })
-  } catch {
-    // Ambiente sem suporte a audio: o app continua funcionando normalmente.
-  }
-}
-
-export function stopKeepAlive() {
-  try {
-    keepAliveEl?.pause()
-  } catch {
-    // ignorado
-  }
-}
 
 /* --------------------------------------------------------- notificacoes */
 
@@ -340,7 +228,7 @@ export function useElapsed(sinceISO: string | null | undefined): number {
   return seconds
 }
 
-/** Dispara os bipes de 3/2/1 e o sinal final, cada um uma unica vez. */
+/** Vibra em 3/2/1 e no fim do descanso, cada um uma unica vez. */
 export function useCountdownFeedback(remaining: number, active: boolean) {
   const lastTick = useRef<number | null>(null)
   const finished = useRef(false)
@@ -355,12 +243,10 @@ export function useCountdownFeedback(remaining: number, active: boolean) {
     const seconds = Math.ceil(remaining)
     if (seconds > 0 && seconds <= 3 && lastTick.current !== seconds) {
       lastTick.current = seconds
-      beepTick()
       vibrate(40)
     }
     if (remaining <= 0 && !finished.current) {
       finished.current = true
-      beepDone()
       vibrate([120, 80, 120, 80, 220])
     }
   }, [remaining, active])

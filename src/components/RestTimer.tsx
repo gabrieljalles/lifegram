@@ -1,12 +1,6 @@
 import { useEffect } from 'react'
 import { formatClock } from '../lib/stats'
-import {
-  notifyRestFinished,
-  startKeepAlive,
-  stopKeepAlive,
-  useCountdown,
-  useCountdownFeedback,
-} from '../lib/timer'
+import { notifyRestFinished, useCountdown, useCountdownFeedback } from '../lib/timer'
 import { Button } from './ui'
 
 const RADIUS = 120
@@ -35,13 +29,6 @@ export default function RestTimer({
 }) {
   const remaining = useCountdown(endsAt, onDone)
   useCountdownFeedback(remaining, true)
-
-  // Mantem a pagina viva enquanto o descanso corre, para o alarme tocar mesmo
-  // com o celular no bolso e a tela apagada.
-  useEffect(() => {
-    startKeepAlive()
-    return () => stopKeepAlive()
-  }, [])
 
   // O aviso de sistema so aparece se voce nao estiver olhando a tela.
   useEffect(() => {

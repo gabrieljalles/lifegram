@@ -18,7 +18,6 @@ import {
   weekKeyOf,
 } from '../lib/stats'
 import { useApp } from '../lib/store'
-import { unlockAudio } from '../lib/timer'
 import { seedStarterData, startWorkout } from '../lib/workout'
 import { WEEKDAYS, newId, nowISO, type Routine, type Weekday } from '../lib/types'
 
@@ -90,8 +89,6 @@ export default function Home() {
     if (busy) return
     setBusy(true)
     try {
-      // O toque aqui e o que libera o audio do timer no celular.
-      unlockAudio()
       const workout = await startWorkout(routine)
       await setActive(workout)
       await reload()

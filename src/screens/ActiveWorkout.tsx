@@ -25,7 +25,7 @@ import {
   type ExerciseSegment,
   type SetLog,
 } from '../lib/types'
-import { beepDone, beepTick, useElapsed, useWakeLock, vibrate } from '../lib/timer'
+import { useElapsed, useWakeLock, vibrate } from '../lib/timer'
 import {
   abandonWorkout,
   adjustRest,
@@ -760,15 +760,10 @@ function TimedSet({
     }
     const marker = current ? current.index : -1
     if (announced.current === marker) return
-    // O primeiro bloco nao apita: voce acabou de tocar em "Iniciar".
+    // O primeiro bloco nao avisa: voce acabou de tocar em "Iniciar".
     if (announced.current !== null) {
-      if (marker === -1) {
-        beepDone()
-        vibrate([200, 80, 200])
-      } else {
-        beepTick()
-        vibrate(120)
-      }
+      if (marker === -1) vibrate([200, 80, 200])
+      else vibrate(120)
     }
     announced.current = marker
   }, [running, current?.index, done])

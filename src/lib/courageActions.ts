@@ -1,5 +1,8 @@
 import {
   allCourageAttempts,
+  allCourageRejections,
+  deleteCourageRejection,
+  putCourageRejection,
   archiveCourageGoal,
   deleteCourageAttempt,
   putCourageAttempt,
@@ -13,6 +16,7 @@ import {
   nowISO,
   type CourageAttempt,
   type CourageGoal,
+  type CourageRejection,
   type CouragePeople,
   type CouragePlace,
   type ID,
@@ -190,4 +194,30 @@ export async function refreshNormalized(goal: CourageGoal): Promise<boolean> {
     updated_at: now,
   })
   return shouldBe
+}
+
+/* ----------------------------------------------------- colecao de naos */
+
+/**
+ * Registra um "nao" tomado. Um toque, sem formulario: o valor do contador
+ * vem de ele ser facil de alimentar na hora, ainda na rua.
+ */
+export async function addRejection(note?: string | null): Promise<CourageRejection> {
+  const now = nowISO()
+  const rejection: CourageRejection = {
+    id: newId(),
+    user_id: await currentUserId(),
+    note: note?.trim() || null,
+    happened_at: now,
+    updated_at: now,
+  }
+  await putCourageRejection(rejection)
+  return rejection
+}
+
+/** Desfaz o ultimo registro — toque errado nao pode sujar a coleção. */
+export async function undoLastRejection(): Promise<void> {
+  const all = await allCourageRejections()
+  const last = all[all.length - 1]
+  if (last) await deleteCourageRejection(last.id)
 }

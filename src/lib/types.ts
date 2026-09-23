@@ -340,6 +340,21 @@ export interface CourageAttempt {
   updated_at: string
 }
 
+/**
+ * Um "nao" tomado. Deliberadamente minimo: registrar tem que caber em um
+ * toque, logo depois do fora, em pe na rua. Pedir formulario aqui seria pedir
+ * para o registro nao acontecer — e o que se quer treinar e justamente pedir
+ * mesmo sabendo que pode levar nao.
+ */
+export interface CourageRejection {
+  id: ID
+  user_id: string | null
+  /** Anotacao opcional: onde foi, o que pediu. Nunca obrigatoria. */
+  note: string | null
+  happened_at: string
+  updated_at: string
+}
+
 /** Historico de mudancas de nota: o diario do progresso de cada degrau. */
 export interface CourageScoreChange {
   id: ID
@@ -362,6 +377,7 @@ export type SyncTable =
   | 'courage_goals'
   | 'courage_attempts'
   | 'courage_score_changes'
+  | 'courage_rejections'
 
 export interface OutboxEntry {
   seq?: number

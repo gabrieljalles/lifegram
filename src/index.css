@@ -87,6 +87,14 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 .animate-pulse-ring { animation: pulse-ring 1s ease-in-out infinite; }
 
+/* Piscar lento das estrelas. Cada uma guarda o proprio brilho em --star-o,
+   entao um keyframe so serve para todas sem achatar o ceu. */
+@keyframes star-twinkle {
+  0%, 100% { opacity: var(--star-o, 0.6); }
+  50% { opacity: calc(var(--star-o, 0.6) * 0.3); }
+}
+.animate-star { animation: star-twinkle 5s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-pop-in, .animate-rise, .animate-pulse-ring { animation: none; }
+  .animate-pop-in, .animate-rise, .animate-pulse-ring, .animate-star { animation: none; }
 }

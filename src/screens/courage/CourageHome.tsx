@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import PRCelebration from '../../components/PRCelebration'
 import { Button, Card, EmptyState, Header, Section } from '../../components/ui'
 import { DataWarning, GoalBar, ScoreBadge, StatusChip } from '../../components/courage-ui'
 import {
@@ -12,7 +13,16 @@ import {
   pendingOf,
   weeklyStreak,
 } from '../../lib/courage'
+import { addRejection, undoLastRejection } from '../../lib/courageActions'
+import {
+  REJECTION_BADGES,
+  praiseFor,
+  rejectionProgress,
+  rejectionStreak,
+  rejectionsThisWeek,
+} from '../../lib/rejections'
 import { useApp } from '../../lib/store'
+import { vibrate } from '../../lib/timer'
 import { COURAGE_STATUS_LABEL, type CourageGoal, type CourageStatus } from '../../lib/types'
 
 type Filter = 'todos' | CourageStatus
@@ -26,8 +36,63 @@ const FILTERS: Array<{ id: Filter; label: string }> = [
 
 export default function CourageHome() {
   const navigate = useNavigate()
-  const { courageGoals, courageAttempts, settings } = useApp()
+  const { courageGoals, courageAttempts, courageRejections, settings, reload } = useApp()
   const [filter, setFilter] = useState<Filter>('todos')
+  const [celebration, setCelebration] = useState<{
+    icon: string
+    label: string
+    detail: string
+  } | null>(null)
+  const [savingNo, setSavingNo] = useState(false)
+  /** Janela curta de arrependimento: toque errado nao pode sujar a contagem. */
+  const [undoable, setUndoable] = useState(false)
+  // Guardado para poder cancelar: sem isso, o timer de um registro antigo
+  // fecha a janela de desfazer de um registro novo feito logo em seguida.
+  const undoTimer = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (undoTimer.current !== null) window.clearTimeout(undoTimer.current)
+    }
+  }, [])
+
+  const naos = useMemo(() => rejectionProgress(courageRejections.length), [courageRejections])
+  const naosSemana = useMemo(() => rejectionsThisWeek(courageRejections), [courageRejections])
+  const naosSeguidos = useMemo(() => rejectionStreak(courageRejections), [courageRejections])
+
+  const registrarNao = async () => {
+    if (savingNo) return
+    setSavingNo(true)
+    try {
+      const total = courageRejections.length + 1
+      await addRejection()
+      await reload()
+
+      const faixaNova = REJECTION_BADGES.find((badge) => badge.at === total) ?? null
+      vibrate(faixaNova ? [120, 60, 120, 60, 220] : 60)
+      setCelebration(
+        faixaNova
+          ? {
+              icon: faixaNova.icon,
+              label: faixaNova.name,
+              detail: `${total}º não — faixa nova desbloqueada`,
+            }
+          : { icon: '🏆', label: `Não nº ${total}`, detail: praiseFor(Math.random()) },
+      )
+      if (undoTimer.current !== null) window.clearTimeout(undoTimer.current)
+      setUndoable(true)
+      undoTimer.current = window.setTimeout(() => setUndoable(false), 12000)
+    } finally {
+      setSavingNo(false)
+    }
+  }
+
+  const desfazerNao = async () => {
+    if (undoTimer.current !== null) window.clearTimeout(undoTimer.current)
+    setUndoable(false)
+    await undoLastRejection()
+    await reload()
+  }
 
   const target = settings.courage_weekly_goal
 
@@ -84,6 +149,72 @@ export default function CourageHome() {
           </Button>
         }
       />
+
+
+      {/* Colecao de naos: fica fora do bloco de objetivos de proposito —
+          contar "nao" nao depende de ter escada montada, e e o primeiro
+          passo de quem ainda nao criou nenhum degrau. */}
+      <Section title="Coleção de nãos">
+        <Card className="border-fire-500/40 bg-fire-600/10 p-4">
+          <div className="flex items-center gap-4">
+            <div className="shrink-0 text-center">
+              <p className="tnum text-4xl font-black leading-none text-fire-400">{naos.total}</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+                {naos.total === 1 ? 'não' : 'nãos'}
+              </p>
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold">
+                {naos.badge ? (
+                  <>
+                    <span aria-hidden="true">{naos.badge.icon}</span> {naos.badge.name}
+                  </>
+                ) : (
+                  <span className="text-ink-300">O primeiro não é o mais caro</span>
+                )}
+              </p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800">
+                <div
+                  className="h-full rounded-full bg-fire-500 transition-[width] duration-500"
+                  style={{ width: `${naos.ratio * 100}%` }}
+                />
+              </div>
+              <p className="mt-1.5 text-[11px] leading-tight text-ink-400">
+                {naos.next
+                  ? `faltam ${naos.missing} para ${naos.next.name}`
+                  : 'todas as faixas conquistadas'}
+              </p>
+            </div>
+          </div>
+
+          <Button
+            className="mt-3.5 w-full"
+            size="lg"
+            variant="go"
+            onClick={() => void registrarNao()}
+            disabled={savingNo}
+          >
+            + Tomei um não
+          </Button>
+
+          <div className="mt-2 flex items-center justify-center gap-2 text-[11px] text-ink-400">
+            <span className="tnum">
+              {naosSemana} esta semana
+              {naosSeguidos > 1 && ` · ${naosSeguidos} dias seguidos`}
+            </span>
+            {undoable && (
+              <button
+                type="button"
+                onClick={() => void desfazerNao()}
+                className="font-semibold text-ink-300 underline underline-offset-2"
+              >
+                desfazer
+              </button>
+            )}
+          </div>
+        </Card>
+      </Section>
 
       {courageGoals.length === 0 ? (
         <EmptyState
@@ -217,6 +348,15 @@ export default function CourageHome() {
             )}
           </Section>
         </>
+      )}
+
+      {celebration && (
+        <PRCelebration
+          icon={celebration.icon}
+          label={celebration.label}
+          detail={celebration.detail}
+          onDone={() => setCelebration(null)}
+        />
       )}
     </div>
   )

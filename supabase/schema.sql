@@ -206,6 +206,16 @@ create table if not exists public.courage_attempts (
   updated_at   timestamptz not null default now()
 );
 
+-- Cada "nao" tomado. Deliberadamente minimo: registrar tem que caber em um
+-- toque, ainda na rua, logo depois do fora.
+create table if not exists public.courage_rejections (
+  id          uuid primary key,
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  note        text,
+  happened_at timestamptz not null,
+  updated_at  timestamptz not null default now()
+);
+
 create table if not exists public.courage_score_changes (
   id         uuid primary key,
   user_id    uuid not null references auth.users (id) on delete cascade,
@@ -219,6 +229,8 @@ create table if not exists public.courage_score_changes (
 
 create index if not exists courage_goals_user_updated_idx
   on public.courage_goals (user_id, updated_at);
+create index if not exists courage_rejections_user_updated_idx
+  on public.courage_rejections (user_id, updated_at);
 create index if not exists courage_attempts_goal_idx
   on public.courage_attempts (goal_id, planned_at);
 create index if not exists courage_attempts_user_updated_idx
@@ -228,6 +240,7 @@ create index if not exists courage_score_changes_goal_idx
 
 alter table public.courage_goals         enable row level security;
 alter table public.courage_attempts      enable row level security;
+alter table public.courage_rejections enable row level security;
 alter table public.courage_score_changes enable row level security;
 
 -- Cada linha pertence a uma pessoa e so ela enxerga.
@@ -237,6 +250,10 @@ create policy courage_goals_owner on public.courage_goals
 
 drop policy if exists courage_attempts_owner on public.courage_attempts;
 create policy courage_attempts_owner on public.courage_attempts
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists courage_rejections_owner on public.courage_rejections;
+create policy courage_rejections_owner on public.courage_rejections
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 drop policy if exists courage_score_changes_owner on public.courage_score_changes;

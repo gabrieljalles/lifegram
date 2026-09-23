@@ -41,6 +41,8 @@ interface NavItem {
 
 function BottomNav() {
   const { pathname } = useLocation()
+  // A roda do hub ja e a navegacao: uma barra em cima dela so competiria.
+  if (pathname === '/') return null
   if (IMMERSIVE.some((prefix) => pathname.startsWith(prefix))) return null
 
   const HOME: NavItem = {
@@ -121,7 +123,7 @@ function BottomNav() {
 export default function App() {
   const { ready } = useApp()
   const { pathname } = useLocation()
-  const immersive = IMMERSIVE.some((prefix) => pathname.startsWith(prefix))
+  const immersive = pathname === '/' || IMMERSIVE.some((prefix) => pathname.startsWith(prefix))
 
   if (!ready) {
     return (

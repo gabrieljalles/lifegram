@@ -180,14 +180,18 @@ export default function Settings() {
       <Section title="Aviso de descanso">
         <Card className="p-4">
           <p className="text-sm leading-relaxed text-ink-300">
-            Quando o descanso acabar, o app apita e vibra. Com a permissão de notificações, você
-            também recebe um aviso na tela de bloqueio — útil para guardar o celular no bolso entre
-            as séries.
+            Quando o descanso acabar, o app vibra. Ele nunca toca som — nem apito, nem áudio mudo
+            em segundo plano — para não abaixar a sua música. Com a permissão de notificações, você
+            também recebe um aviso na tela de bloqueio.
+          </p>
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
+            Em troca do silêncio, o aviso pode atrasar se você trocar de app ou apagar a tela
+            durante o descanso: o navegador congela o cronômetro de páginas em segundo plano.
           </p>
 
           {notifyState === 'unsupported' && (
             <p className="mt-2 text-[11px] text-ink-400">
-              Este navegador não suporta notificações. O apito e a vibração continuam funcionando.
+              Este navegador não suporta notificações. A vibração continua funcionando.
             </p>
           )}
           {notifyState === 'granted' && (

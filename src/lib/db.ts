@@ -5,6 +5,7 @@ import type {
   BodyWeightLog,
   CourageAttempt,
   CourageGoal,
+  CourageRejection,
   CourageScoreChange,
   Exercise,
   ID,
@@ -44,6 +45,7 @@ interface WorkoutDB extends DBSchema {
     indexes: { by_goal: ID; by_planned: string }
   }
   courage_score_changes: { key: ID; value: CourageScoreChange; indexes: { by_goal: ID } }
+  courage_rejections: { key: ID; value: CourageRejection; indexes: { by_happened: string } }
   /** Fila de sincronizacao: o que ainda nao subiu para o Supabase. */
   outbox: { key: number; value: OutboxEntry }
   /** Fotos como blob, garantindo imagem no exercicio mesmo offline. */
@@ -53,7 +55,7 @@ interface WorkoutDB extends DBSchema {
 }
 
 const DB_NAME = 'workout'
-const DB_VERSION = 3
+const DB_VERSION = 4
 
 let dbPromise: Promise<IDBPDatabase<WorkoutDB>> | null = null
 
@@ -97,6 +99,11 @@ export function db(): Promise<IDBPDatabase<WorkoutDB>> {
 
           const changes = database.createObjectStore('courage_score_changes', { keyPath: 'id' })
           changes.createIndex('by_goal', 'goal_id')
+        }
+
+        if (oldVersion < 4) {
+          const rejections = database.createObjectStore('courage_rejections', { keyPath: 'id' })
+          rejections.createIndex('by_happened', 'happened_at')
         }
       },
     })
@@ -302,6 +309,23 @@ export async function allCourageAttempts(): Promise<CourageAttempt[]> {
   return rows.sort((a, b) => a.planned_at.localeCompare(b.planned_at))
 }
 
+export async function putCourageRejection(rejection: CourageRejection, { sync = true } = {}) {
+  const database = await db()
+  await database.put('courage_rejections', rejection)
+  if (sync) await enqueue('courage_rejections', rejection.id)
+}
+
+export async function deleteCourageRejection(id: ID) {
+  const database = await db()
+  await database.delete('courage_rejections', id)
+  await enqueue('courage_rejections', id, 'delete')
+}
+
+export async function allCourageRejections(): Promise<CourageRejection[]> {
+  const rows = await (await db()).getAll('courage_rejections')
+  return rows.sort((a, b) => a.happened_at.localeCompare(b.happened_at))
+}
+
 export async function putCourageScoreChange(change: CourageScoreChange, { sync = true } = {}) {
   const database = await db()
   await database.put('courage_score_changes', change)
@@ -414,6 +438,7 @@ export interface Backup {
   courage_goals?: CourageGoal[]
   courage_attempts?: CourageAttempt[]
   courage_score_changes?: CourageScoreChange[]
+  courage_rejections?: CourageRejection[]
 }
 
 export async function exportBackup(): Promise<Backup> {
@@ -429,6 +454,7 @@ export async function exportBackup(): Promise<Backup> {
     courage_goals,
     courage_attempts,
     courage_score_changes,
+    courage_rejections,
   ] = await Promise.all([
     database.getAll('exercises'),
     database.getAll('routines'),
@@ -439,6 +465,7 @@ export async function exportBackup(): Promise<Backup> {
     database.getAll('courage_goals'),
     database.getAll('courage_attempts'),
     database.getAll('courage_score_changes'),
+    database.getAll('courage_rejections'),
   ])
   return {
     version: 2,
@@ -453,6 +480,7 @@ export async function exportBackup(): Promise<Backup> {
     courage_goals,
     courage_attempts,
     courage_score_changes,
+    courage_rejections,
   }
 }
 
@@ -480,6 +508,7 @@ export async function importBackup(backup: Backup): Promise<number> {
     'courage_goals',
     'courage_attempts',
     'courage_score_changes',
+    'courage_rejections',
   ]
   for (const table of tables) {
     const rows = (backup[table] ?? []) as Array<{ id: ID; updated_at: string }>

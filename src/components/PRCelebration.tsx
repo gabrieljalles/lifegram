@@ -19,10 +19,13 @@ interface Piece {
 export default function PRCelebration({
   label,
   detail,
+  icon = '🏆',
   onDone,
 }: {
   label: string
   detail: string
+  /** Trofeu por padrao; a colecao de naos troca pelo simbolo da faixa. */
+  icon?: string
   onDone: () => void
 }) {
   const [leaving, setLeaving] = useState(false)
@@ -87,7 +90,7 @@ export default function PRCelebration({
 
       <div className="animate-pop-in rounded-3xl border border-pr-500/50 bg-ink-950/90 px-7 py-6 text-center shadow-2xl backdrop-blur">
         <div className="text-4xl" aria-hidden="true">
-          🏆
+          {icon}
         </div>
         <p className="mt-2 text-xl font-extrabold tracking-tight text-pr-400">{label}</p>
         <p className="tnum mt-1 text-sm text-ink-200">{detail}</p>
