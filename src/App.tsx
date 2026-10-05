@@ -20,10 +20,12 @@ const CourageGoalDetail = lazy(() => import('./screens/courage/CourageGoalDetail
 const CourageGoalForm = lazy(() => import('./screens/courage/CourageGoalForm'))
 const CourageAttemptForm = lazy(() => import('./screens/courage/CourageAttemptForm'))
 const CourageDashboard = lazy(() => import('./screens/courage/CourageDashboard'))
+const CourageTrack = lazy(() => import('./screens/courage/CourageTrack'))
+const CourageCalibrate = lazy(() => import('./screens/courage/CourageCalibrate'))
 const ExerciseDetail = lazy(() => import('./screens/ExerciseDetail'))
 
 /** A tela de treino e imersiva: sem barra de navegacao competindo com o foco. */
-const IMMERSIVE = ['/treino', '/resumo']
+const IMMERSIVE = ['/treino', '/resumo', '/coragem/mapa']
 
 /** Rotas que pertencem a area de exercicios (mudam a barra de baixo). */
 const GYM = ['/academia', '/stats', '/treinos', '/exercicio']
@@ -149,6 +151,8 @@ export default function App() {
             <Route path="/desempenho" element={<Performance />} />
             <Route path="/coragem" element={<CourageHome />} />
             <Route path="/coragem/painel" element={<CourageDashboard />} />
+            <Route path="/coragem/mapa" element={<CourageTrack />} />
+            <Route path="/coragem/mapa/calibrar" element={<CourageCalibrate />} />
             <Route path="/coragem/novo" element={<CourageGoalForm />} />
             <Route path="/coragem/tentativa/:attemptId" element={<CourageAttemptForm />} />
             <Route path="/coragem/:goalId" element={<CourageGoalDetail />} />

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Button,
+  DurationField,
   ExercisePhoto,
   Header,
   MUSCLE_LABEL,
@@ -296,7 +297,11 @@ export default function ExerciseEditor() {
                 // 8 a 12 SEGUNDOS nao e faixa de prancha nenhuma. Ao trocar de
                 // modo, os padroes viram os da nova unidade — mas so quando os
                 // valores ainda sao os de fabrica, para nao apagar sua escolha.
-                if (option === 'tempo' && floor === DEFAULT_REP_FLOOR && ceiling === DEFAULT_REP_CEILING) {
+                if (
+                  option === 'tempo' &&
+                  floor === DEFAULT_REP_FLOOR &&
+                  ceiling === DEFAULT_REP_CEILING
+                ) {
                   setFloor(30)
                   setCeiling(60)
                 }
@@ -330,28 +335,55 @@ export default function ExerciseEditor() {
 
       <Section title="Progressão">
         <div className="grid grid-cols-2 gap-2">
-          <NumberField
-            label={measure === 'tempo' ? 'Tempo mínimo (s)' : 'Reps mínimas'}
-            value={floor}
-            min={1}
-            max={600}
-            onChange={(next) => {
-              setFloor(next)
-              // A faixa precisa ter largura: o ajuste recai sobre o OUTRO campo,
-              // nunca sobre o numero que voce acabou de digitar.
-              setCeiling((current) => (current <= next ? next + 1 : current))
-            }}
-          />
-          <NumberField
-            label={measure === 'tempo' ? 'Tempo máximo (s)' : 'Reps máximas'}
-            value={ceiling}
-            min={2}
-            max={600}
-            onChange={(next) => {
-              setCeiling(next)
-              setFloor((current) => (current >= next ? Math.max(1, next - 1) : current))
-            }}
-          />
+          {measure === 'tempo' ? (
+            <>
+              <DurationField
+                label="Tempo mínimo"
+                value={floor}
+                min={1}
+                max={3600}
+                onChange={(next) => {
+                  setFloor(next)
+                  // A faixa precisa ter largura: o ajuste recai sobre o OUTRO
+                  // campo, nunca sobre o numero que voce acabou de digitar.
+                  setCeiling((current) => (current <= next ? next + 5 : current))
+                }}
+              />
+              <DurationField
+                label="Tempo máximo"
+                value={ceiling}
+                min={2}
+                max={3600}
+                onChange={(next) => {
+                  setCeiling(next)
+                  setFloor((current) => (current >= next ? Math.max(1, next - 5) : current))
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <NumberField
+                label="Reps mínimas"
+                value={floor}
+                min={1}
+                max={100}
+                onChange={(next) => {
+                  setFloor(next)
+                  setCeiling((current) => (current <= next ? next + 1 : current))
+                }}
+              />
+              <NumberField
+                label="Reps máximas"
+                value={ceiling}
+                min={2}
+                max={100}
+                onChange={(next) => {
+                  setCeiling(next)
+                  setFloor((current) => (current >= next ? Math.max(1, next - 1) : current))
+                }}
+              />
+            </>
+          )}
         </div>
         <div className="mt-2">
           <NumberField
@@ -366,13 +398,20 @@ export default function ExerciseEditor() {
           />
         </div>
         <p className="mt-2 px-1 text-[11px] leading-relaxed text-ink-400">
-          Treine entre <strong className="tnum text-ink-300">{floor}</strong> e{' '}
-          <strong className="tnum text-ink-300">{ceiling}</strong>{' '}
-          {measure === 'tempo' ? 'segundos' : 'repetições'}. Bater {ceiling} em{' '}
-          <em>todas</em> as séries sugere subir{' '}
-          <strong className="tnum text-ink-300">{formatWeight(increment)} kg</strong>; cair abaixo
-          de {floor} em qualquer série sugere baixar. Se o 1RM estimado estagnar por várias sessões
-          dentro da faixa, o app sugere um treino mais leve para destravar o platô.
+          Treine entre{' '}
+          <strong className="tnum text-ink-300">
+            {measure === 'tempo' ? formatClock(floor) : floor}
+          </strong>{' '}
+          e{' '}
+          <strong className="tnum text-ink-300">
+            {measure === 'tempo' ? formatClock(ceiling) : ceiling}
+          </strong>
+          {measure === 'tempo' ? '' : ' repetições'}. Bater{' '}
+          {measure === 'tempo' ? formatClock(ceiling) : ceiling} em <em>todas</em> as séries sugere
+          subir <strong className="tnum text-ink-300">{formatWeight(increment)} kg</strong>; cair
+          abaixo de {measure === 'tempo' ? formatClock(floor) : floor} em qualquer série sugere
+          baixar. Se o 1RM estimado estagnar por várias sessões dentro da faixa, o app sugere um
+          treino mais leve para destravar o platô.
           {group === 'cardio' && ' Exercícios de cardio não recebem essas sugestões.'}
         </p>
         <p className="mt-1.5 px-1 text-[11px] leading-relaxed text-ink-400">
@@ -441,57 +480,57 @@ function SegmentEditor({
       ) : (
         <div className="flex flex-col gap-2">
           {segments.map((segment, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-2 rounded-xl border border-ink-700 bg-ink-850 p-2.5"
-            >
-              <span className="tnum w-5 shrink-0 text-center text-xs font-bold text-ink-400">
-                {index + 1}
-              </span>
-              <input
-                value={segment.label}
-                onChange={(event) => update(index, { label: event.target.value })}
-                placeholder="Tiro forte"
-                className="min-w-0 flex-1 rounded-lg border border-ink-700 bg-ink-800 px-2.5 py-2 text-sm outline-none focus:border-brand-500"
-              />
-              <input
-                type="text"
-                inputMode="numeric"
-                value={String(segment.seconds)}
-                onChange={(event) => {
-                  const parsed = Number.parseInt(event.target.value.replace(/\D/g, ''), 10)
-                  update(index, { seconds: Number.isFinite(parsed) ? parsed : 0 })
-                }}
-                aria-label={`Segundos do bloco ${index + 1}`}
-                className="tnum w-16 shrink-0 rounded-lg border border-ink-700 bg-ink-800 px-2 py-2 text-center text-sm font-semibold outline-none focus:border-brand-500"
-              />
-              <span className="shrink-0 text-[11px] text-ink-400">s</span>
-              <div className="flex shrink-0 flex-col">
+            <div key={index} className="rounded-xl border border-ink-700 bg-ink-850 p-2.5">
+              <div className="flex items-center gap-2">
+                <span className="tnum w-5 shrink-0 text-center text-xs font-bold text-ink-400">
+                  {index + 1}
+                </span>
+                <input
+                  value={segment.label}
+                  onChange={(event) => update(index, { label: event.target.value })}
+                  placeholder="Tiro forte"
+                  aria-label={`Nome do bloco ${index + 1}`}
+                  className="min-w-0 flex-1 rounded-lg border border-ink-700 bg-ink-800 px-2.5 py-2 text-sm outline-none focus:border-brand-500"
+                />
+                <div className="flex shrink-0 flex-col">
+                  <button
+                    type="button"
+                    aria-label={`Subir bloco ${index + 1}`}
+                    onClick={() => move(index, -1)}
+                    className="px-1 text-xs text-ink-400 active:text-ink-100"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Descer bloco ${index + 1}`}
+                    onClick={() => move(index, 1)}
+                    className="px-1 text-xs text-ink-400 active:text-ink-100"
+                  >
+                    ▼
+                  </button>
+                </div>
                 <button
                   type="button"
-                  aria-label={`Subir bloco ${index + 1}`}
-                  onClick={() => move(index, -1)}
-                  className="px-1 text-xs text-ink-400 active:text-ink-100"
+                  aria-label={`Remover bloco ${index + 1}`}
+                  onClick={() => onChange(segments.filter((_, i) => i !== index))}
+                  className="shrink-0 px-1.5 text-sm text-fire-400"
                 >
-                  ▲
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Descer bloco ${index + 1}`}
-                  onClick={() => move(index, 1)}
-                  className="px-1 text-xs text-ink-400 active:text-ink-100"
-                >
-                  ▼
+                  ✕
                 </button>
               </div>
-              <button
-                type="button"
-                aria-label={`Remover bloco ${index + 1}`}
-                onClick={() => onChange(segments.filter((_, i) => i !== index))}
-                className="shrink-0 px-1.5 text-sm text-fire-400"
-              >
-                ✕
-              </button>
+
+              {/* Duracao em linha separada: min e seg nao cabem ao lado do nome
+                  numa tela de celular sem virar caixinha de um digito. */}
+              <div className="mt-2">
+                <DurationField
+                  label={`Duração do bloco ${index + 1}`}
+                  value={segment.seconds}
+                  min={1}
+                  max={3600}
+                  onChange={(seconds) => update(index, { seconds })}
+                />
+              </div>
             </div>
           ))}
         </div>
@@ -501,14 +540,14 @@ function SegmentEditor({
         <Button
           size="sm"
           variant="outline"
-          onClick={() => onChange([...segments, { label: `Bloco ${segments.length + 1}`, seconds: 30 }])}
+          onClick={() =>
+            onChange([...segments, { label: `Bloco ${segments.length + 1}`, seconds: 30 }])
+          }
         >
           + Bloco
         </Button>
         {segments.length > 0 && (
-          <span className="tnum text-xs text-ink-400">
-            Série completa: {formatClock(total)}
-          </span>
+          <span className="tnum text-xs text-ink-400">Série completa: {formatClock(total)}</span>
         )}
       </div>
     </div>

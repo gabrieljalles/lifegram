@@ -8,14 +8,17 @@ import {
   putCourageAttempt,
   putCourageGoal,
   putCourageScoreChange,
+  putCourageTrackStep,
 } from './db'
 import { attemptsOfGoal, clampScore, evaluateGoal } from './courage'
+import { emptyRow, registerAttempt, skipStep, type Rating } from './tracks'
 import { currentUserId } from './supabase'
 import {
   newId,
   nowISO,
   type CourageAttempt,
   type CourageGoal,
+  type CourageTrackStep,
   type CourageRejection,
   type CouragePeople,
   type CouragePlace,
@@ -220,4 +223,53 @@ export async function undoLastRejection(): Promise<void> {
   const all = await allCourageRejections()
   const last = all[all.length - 1]
   if (last) await deleteCourageRejection(last.id)
+}
+
+/* --------------------------------------------------------------- trilha */
+
+/**
+ * Registra uma tentativa num degrau do mapa.
+ *
+ * A linha nasce no primeiro toque — degrau que voce nunca encostou nao ocupa
+ * espaco no banco. Devolve a linha nova e se o degrau ACABOU de fechar, que e
+ * o gancho da comemoracao na tela.
+ */
+export async function registerTrackAttempt(
+  rows: CourageTrackStep[],
+  track_id: string,
+  step_id: string,
+  rating: Rating,
+  base: number,
+): Promise<{ row: CourageTrackStep; justCompleted: boolean }> {
+  const existing = rows.find((r) => r.track_id === track_id && r.step_id === step_id)
+  const before = existing ?? emptyRow(newId(), await currentUserId(), track_id, step_id)
+  const row = registerAttempt(before, rating, base)
+  await putCourageTrackStep(row)
+  return { row, justCompleted: Boolean(row.completed_at) && !before.completed_at }
+}
+
+/**
+ * Passou no teste de nivelamento: fecha como dominados os niveis abertos do
+ * capitulo (menos os `keep`). Devolve quantos fecharam.
+ */
+export async function masterSteps(
+  rows: CourageTrackStep[],
+  track_id: string,
+  step_ids: string[],
+): Promise<number> {
+  for (const step_id of step_ids) await skipTrackStep(rows, track_id, step_id)
+  return step_ids.length
+}
+
+/** "Isso ja e normal para mim": fecha o degrau sem contar como treinado. */
+export async function skipTrackStep(
+  rows: CourageTrackStep[],
+  track_id: string,
+  step_id: string,
+): Promise<CourageTrackStep> {
+  const existing = rows.find((r) => r.track_id === track_id && r.step_id === step_id)
+  const base = existing ?? emptyRow(newId(), await currentUserId(), track_id, step_id)
+  const row = skipStep(base)
+  await putCourageTrackStep(row)
+  return row
 }

@@ -259,3 +259,32 @@ create policy courage_rejections_owner on public.courage_rejections
 drop policy if exists courage_score_changes_owner on public.courage_score_changes;
 create policy courage_score_changes_owner on public.courage_score_changes
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+/* ------------------------------------------------------- trilha da coragem */
+create table if not exists public.courage_track_steps (
+  id           uuid primary key,
+  user_id      uuid not null references auth.users (id) on delete cascade,
+  track_id     text not null,
+  step_id      text not null,
+  -- Tentativas totais, inclusive as que nao deram certo.
+  attempts     integer not null default 0 check (attempts >= 0),
+  -- Tentativas com resultado ok: sao estas que fecham o degrau.
+  done         integer not null default 0 check (done >= 0),
+  easy         integer not null default 0 check (easy >= 0),
+  hard         integer not null default 0 check (hard >= 0),
+  completed_at timestamptz,
+  -- "Isso ja e normal para mim": fechado sem ter sido treinado na trilha.
+  skipped_at   timestamptz,
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists courage_track_steps_user_updated_idx
+  on public.courage_track_steps (user_id, updated_at);
+create index if not exists courage_track_steps_step_idx
+  on public.courage_track_steps (user_id, track_id, step_id);
+
+alter table public.courage_track_steps enable row level security;
+
+drop policy if exists courage_track_steps_owner on public.courage_track_steps;
+create policy courage_track_steps_owner on public.courage_track_steps
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

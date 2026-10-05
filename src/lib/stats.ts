@@ -101,6 +101,12 @@ export interface ExerciseSessionPoint {
   bestE1RM: number
   /** Soma de reps x peso de todas as series do exercicio na sessao. */
   volume: number
+  /**
+   * Maior reps x peso de UMA serie da sessao. Diferente do volume total, nao
+   * sobe so porque voce fez mais series — e o numero certo para comparar
+   * sessoes com quantidades de series diferentes.
+   */
+  bestSetVolume: number
   sets: number
   reps: number
   /** Menor numero de reps entre as series — base da dupla progressao por faixa. */
@@ -125,6 +131,7 @@ export function exerciseSessionPoints(logs: SetLog[]): ExerciseSessionPoint[] {
       topWeight: Math.max(...group.map((l) => l.weight)),
       bestE1RM: Math.max(...group.map(logE1RM)),
       volume: totalVolume(group),
+      bestSetVolume: Math.max(...group.map(setVolume)),
       sets: group.length,
       reps: group.reduce((sum, l) => sum + l.reps, 0),
       minReps: Math.min(...group.map((l) => l.reps)),

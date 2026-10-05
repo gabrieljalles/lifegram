@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 const COLORS = ['#3987e5', '#d95926', '#199e70', '#f59e0b', '#9085e9']
 
@@ -44,14 +44,21 @@ export default function PRCelebration({
     [],
   )
 
+  // `onDone` fica numa ref e NAO entra nas dependencias: quem chama costuma
+  // passar uma arrow inline, que muda de identidade a cada render. Na tela do
+  // treino, onde o relogio redesenha a cada segundo, isso reiniciava os dois
+  // temporizadores antes da hora e a comemoracao ficava presa para sempre.
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
+
   useEffect(() => {
     const fade = window.setTimeout(() => setLeaving(true), 1700)
-    const close = window.setTimeout(onDone, 2100)
+    const close = window.setTimeout(() => onDoneRef.current(), 2100)
     return () => {
       window.clearTimeout(fade)
       window.clearTimeout(close)
     }
-  }, [onDone])
+  }, [])
 
   return (
     <div

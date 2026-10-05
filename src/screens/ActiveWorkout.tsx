@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import PRCelebration from '../components/PRCelebration'
@@ -36,6 +36,13 @@ import {
   skipRest,
   undoSet,
 } from '../lib/workout'
+
+/**
+ * Os graficos do historico so baixam quando a tela do treino pede — o Recharts
+ * pesa mais que o resto do app somado e nao pode atrasar o inicio da sessao.
+ * Ja em cache, abrem instantaneamente (e offline).
+ */
+const ExerciseHistory = lazy(() => import('../components/ExerciseHistory'))
 
 /** Ajuste fino no toque principal; o atalho grande cobre a troca de anilha. */
 const WEIGHT_STEP = 1
@@ -99,6 +106,12 @@ export default function ActiveWorkout() {
       best: bestSet(sets) as SetLog,
     }
   }, [priorLogs])
+
+  /** Todas as series do exercicio, incluindo as de hoje — base dos graficos. */
+  const exerciseLogs = useMemo(
+    () => (item ? (logsByExercise.get(item.exercise_id) ?? []) : []),
+    [item?.exercise_id, logsByExercise],
+  )
 
   /** O que ja foi feito hoje neste exercicio, para comparar ao vivo. */
   const todaySets = useMemo(() => {
@@ -166,7 +179,14 @@ export default function ActiveWorkout() {
         duration_seconds: seconds,
       })
       // A carga que voce realmente usou vira o alvo da proxima vez.
-      await rememberLoad(active.routine_id, item.exercise_id, weight, timed ? (seconds ?? 0) : reps)
+      // Em exercicio de tempo guarda so a carga: o alvo de segundos e o plano
+      // do treino, nao o que saiu numa serie ruim.
+      await rememberLoad(
+        active.routine_id,
+        item.exercise_id,
+        weight,
+        timed ? item.target_reps : reps,
+      )
 
       if (result.isPR) {
         setCelebration({
@@ -204,11 +224,19 @@ export default function ActiveWorkout() {
   }
 
   const timed = item.measure === 'tempo'
-  /** Alvo em segundos: a soma dos blocos manda no composto. */
+  /**
+   * Alvo em segundos: a soma dos blocos manda no composto.
+   *
+   * O fallback cobre treino em andamento que ficou com alvo zerado antes da
+   * correcao — sem ele, o cronometro abriria em 0:00 e ja daria a serie por
+   * encerrada.
+   */
   const targetSeconds = timed
     ? item.segments.length > 0
       ? segmentsDuration(item.segments)
-      : item.target_reps
+      : item.target_reps > 0
+        ? item.target_reps
+        : (exercise.rep_ceiling ?? DEFAULT_REP_CEILING)
     : 0
 
   /** O exercicio da vez e um que voltou da fila de adiados. */
@@ -415,6 +443,23 @@ export default function ActiveWorkout() {
             Primeira vez neste exercício — a partir do próximo treino você vê aqui como foi hoje.
           </p>
         )}
+
+        {/*
+          Abaixo da dobra de proposito: entre uma serie e outra voce rola e ve a
+          evolucao do exercicio que esta fazendo, sem sair do treino.
+        */}
+        <Suspense
+          fallback={
+            <div className="mt-4 flex h-24 w-full max-w-sm items-center justify-center">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-ink-700 border-t-brand-400" />
+            </div>
+          }
+        >
+          <ExerciseHistory logs={exerciseLogs} />
+        </Suspense>
+
+        {/* Respiro para o ultimo grafico nao encostar na barra de acao. */}
+        <div className="h-2 shrink-0" />
       </div>
 
       {/* --------------------------------------------------------- acao */}

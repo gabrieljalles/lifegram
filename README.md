@@ -93,6 +93,30 @@ tendência. A análise de padrões (horário, ambiente, tipo de pessoa, energia)
 abre com 15 tentativas completas, e grupo com uma única tentativa não vira
 padrão.
 
+**Mapa da trilha** (botão de mapa ao lado de "+ Objetivo"): um caminho pronto
+de 500 níveis em 20 capítulos, do "bom dia" ao convite — olhar, cumprimentos,
+gentilezas, voz, pedidos, elogios, puxar assunto, histórias, humor, grupos e,
+na segunda metade, conversa, flerte, abordagem e convite com mulheres. Cada
+nível pede de 1 a 3 execuções; o anel na borda do círculo acende um segmento
+por execução. Toda execução conta (não existe "não rolou"); nos níveis em que
+um não é possível, dá para marcar "fiz e ouvi um não", que vale igual e entra
+no contador de "não". Níveis ousados levam 🔥. O selo do topo mostra se o passo
+do dia já foi dado. O conteúdo vive em
+[src/lib/trackCarisma.ts](src/lib/trackCarisma.ts) e só o progresso vai para o
+banco — por isso novos níveis entram no fim do capítulo, nunca no meio.
+
+A trilha se adapta. Depois de cada execução você marca **Fácil, Normal ou
+Difícil**: fácil vale por duas, a primeira difícil acrescenta uma (no máximo 3)
+e duas difíceis sugerem refazer o nível anterior como aquecimento. Dois níveis
+fáceis seguidos fazem o próximo pedir 1 execução, e o embalo não atravessa
+capítulos. A **calibração** (`/coragem/mapa/calibrar`, 14 perguntas) define o
+ritmo de cada capítulo: completo, rápido (metade das execuções) ou com **teste
+de nivelamento** — o desafio final feito como fácil fecha o capítulo, menos os
+níveis marcados como ponto fraco. 40 níveis 💜 de autoestima ficam espalhados
+pelo caminho, dois por capítulo. A lógica está em
+[src/lib/tracks.ts](src/lib/tracks.ts) e as perguntas em
+[src/lib/trackCalibration.ts](src/lib/trackCalibration.ts).
+
 Os dados saem em **CSV ou JSON** pelo painel (`/coragem/painel`), que também
 traz a média das notas ao longo do tempo, tentativas por semana com linha de
 meta (padrão 3, configurável ali mesmo) e a distribuição de objetivos por nota.

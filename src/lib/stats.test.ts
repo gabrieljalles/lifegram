@@ -7,6 +7,7 @@ import {
   computeScheduleStreak,
   computeStreak,
   epley1RM,
+  exerciseSessionPoints,
   routinesForDay,
   scheduleOf,
   formatClock,
@@ -610,5 +611,18 @@ describe('series cronometradas', () => {
     expect(setLabel(timed('2026-03-02', 90))).toBe('1:30')
     expect(setLabel(timed('2026-03-02', 45, 10))).toBe('10 kg · 0:45')
     expect(setLabel(log({ day: '2026-03-02', weight: 40, reps: 12 }))).toBe('40×12')
+  })
+})
+
+describe('bestSetVolume por sessão', () => {
+  it('pega a melhor série, não a soma — mais séries não inflam o número', () => {
+    const sessao = [
+      log({ day: '2026-03-02', weight: 40, reps: 10, session_id: 's1' }),
+      log({ day: '2026-03-02', weight: 40, reps: 12, session_id: 's1', set_number: 2 }),
+      log({ day: '2026-03-02', weight: 40, reps: 8, session_id: 's1', set_number: 3 }),
+    ]
+    const [ponto] = exerciseSessionPoints(sessao)
+    expect(ponto.bestSetVolume).toBe(480)
+    expect(ponto.volume).toBe(1200)
   })
 })

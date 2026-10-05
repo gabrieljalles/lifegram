@@ -21,6 +21,7 @@ import {
   rejectionStreak,
   rejectionsThisWeek,
 } from '../../lib/rejections'
+import { CARISMA, currentStepId } from '../../lib/tracks'
 import { useApp } from '../../lib/store'
 import { vibrate } from '../../lib/timer'
 import { COURAGE_STATUS_LABEL, type CourageGoal, type CourageStatus } from '../../lib/types'
@@ -36,7 +37,8 @@ const FILTERS: Array<{ id: Filter; label: string }> = [
 
 export default function CourageHome() {
   const navigate = useNavigate()
-  const { courageGoals, courageAttempts, courageRejections, settings, reload } = useApp()
+  const { courageGoals, courageAttempts, courageRejections, courageTrackSteps, settings, reload } =
+    useApp()
   const [filter, setFilter] = useState<Filter>('todos')
   const [celebration, setCelebration] = useState<{
     icon: string
@@ -94,6 +96,9 @@ export default function CourageHome() {
     await reload()
   }
 
+  /** Ha degrau da trilha esperando: o ponto no botao do mapa. */
+  const trilhaPendente = currentStepId(CARISMA, courageTrackSteps) !== null
+
   const target = settings.courage_weekly_goal
 
   /** Avaliacao de cada objetivo, calculada uma vez e reaproveitada na lista. */
@@ -144,9 +149,37 @@ export default function CourageHome() {
         }
         back="/"
         action={
-          <Button size="sm" onClick={() => navigate('/coragem/novo')}>
-            + Objetivo
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {/* Quadrado com o mapa: atalho para a trilha pronta, para quem abre
+                a Coragem sem saber o que fazer hoje. O ponto aceso diz que ha
+                degrau esperando. */}
+            <button
+              type="button"
+              aria-label="Abrir o mapa da trilha"
+              onClick={() => navigate('/coragem/mapa')}
+              className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-ink-600 text-ink-100 active:bg-ink-800"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <path d="M9 4 3 6.5v13L9 17l6 2.5 6-2.5v-13L15 7 9 4z" />
+                <path d="M9 4v13M15 7v12.5" />
+              </svg>
+              {trilhaPendente && (
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-ink-900 bg-brand-500" />
+              )}
+            </button>
+            <Button size="sm" onClick={() => navigate('/coragem/novo')}>
+              + Objetivo
+            </Button>
+          </div>
         }
       />
 

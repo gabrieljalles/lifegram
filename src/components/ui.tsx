@@ -319,6 +319,125 @@ export function ExercisePhoto({
   )
 }
 
+/**
+ * Duracao em minutos e segundos, guardada e devolvida sempre em SEGUNDOS.
+ *
+ * Existe porque "600" nao e como ninguem pensa em dez minutos. Os dois campos
+ * seguem a mesma disciplina do NumberField — texto livre enquanto voce digita,
+ * conta so ao sair do campo — e a normalizacao acontece no commit: digitar 90
+ * no campo de segundos vira 1 min 30 s sozinho.
+ */
+export function DurationField({
+  label,
+  value,
+  onChange,
+  min = 0,
+  max = 3600,
+  hint,
+}: {
+  label: string
+  /** Duracao em segundos. */
+  value: number
+  onChange: (seconds: number) => void
+  min?: number
+  max?: number
+  hint?: string
+}) {
+  const [text, setText] = useState(() => splitDuration(value))
+  const [editing, setEditing] = useState(false)
+
+  useEffect(() => {
+    if (!editing) setText(splitDuration(value))
+  }, [value, editing])
+
+  const digits = (raw: string, maxLength: number) => raw.replace(/\D/g, '').slice(0, maxLength)
+
+  /**
+   * Minuto e segundo so fazem sentido juntos, entao a conta fecha quando o foco
+   * sai do PAR — nao de cada caixa.
+   *
+   * Fechar a cada caixa dava resultado absurdo: ao pular de minutos para
+   * segundos, o commit via o par pela metade, "corrigia" o valor sozinho e o
+   * numero restaurado se somava ao que estava sendo digitado (0 + 30 virava
+   * 1:30, e por ai).
+   */
+  const commit = () => {
+    const minutes = Number.parseInt(text.m || '0', 10)
+    const seconds = Number.parseInt(text.s || '0', 10)
+    const total =
+      (Number.isFinite(minutes) ? minutes : 0) * 60 + (Number.isFinite(seconds) ? seconds : 0)
+
+    // Par vazio nao vira "o minimo": volta ao valor anterior.
+    if (total <= 0) {
+      setText(splitDuration(value))
+      return
+    }
+
+    const clamped = Math.min(max, Math.max(min, total))
+    onChange(clamped)
+    setText(splitDuration(clamped))
+  }
+
+  const box = (part: 'm' | 's', aria: string) => (
+    <input
+      type="text"
+      inputMode="numeric"
+      aria-label={aria}
+      value={text[part]}
+      onFocus={(event) => {
+        setEditing(true)
+        event.target.select()
+      }}
+      onChange={(event) =>
+        setText((current) => ({ ...current, [part]: digits(event.target.value, part === 'm' ? 3 : 2) }))
+      }
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur()
+      }}
+      className="tnum w-full min-w-0 rounded-lg border border-ink-700 bg-ink-800 py-2 text-center text-xl font-bold outline-none focus:border-brand-500"
+    />
+  )
+
+  return (
+    <div
+      className="rounded-xl border border-ink-700 bg-ink-850 p-3"
+      onBlur={(event) => {
+        // Foco indo para a caixa irma: ainda e a mesma edicao, nao fecha conta.
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+        setEditing(false)
+        commit()
+      }}
+    >
+      <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+        {label}
+      </span>
+      <div className="mt-1 flex items-center gap-1.5">
+        <div className="min-w-0 flex-1">
+          {box('m', `${label}: minutos`)}
+          <p className="mt-0.5 text-center text-[10px] text-ink-400">min</p>
+        </div>
+        <span className="pb-4 text-lg font-bold text-ink-500" aria-hidden="true">
+          :
+        </span>
+        <div className="min-w-0 flex-1">
+          {box('s', `${label}: segundos`)}
+          <p className="mt-0.5 text-center text-[10px] text-ink-400">seg</p>
+        </div>
+      </div>
+      {hint && <p className="mt-0.5 text-[10px] leading-tight text-ink-400">{hint}</p>}
+    </div>
+  )
+}
+
+/** Quebra segundos em campos de minuto e segundo, com o segundo em duas casas. */
+function splitDuration(total: number): { m: string; s: string } {
+  const safe = Math.max(0, Math.round(total))
+  return {
+    m: String(Math.floor(safe / 60)),
+    s: String(safe % 60).padStart(2, '0'),
+  }
+}
+
 /* --------------------------------------------------------- campo numerico */
 
 /**

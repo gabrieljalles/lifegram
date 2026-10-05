@@ -144,9 +144,19 @@ export async function completeSet(
 
   // A carga usada vira o alvo das proximas series deste exercicio na sessao:
   // quem trocou a anilha nao quer redigitar o mesmo numero a cada serie.
+  //
+  // Em exercicio cronometrado o alvo e TEMPO: herdar `reps` (que vale 0 nessas
+  // series) zerava o cronometro da segunda serie em diante.
   const items = active.items.map((entry, index) =>
     index === active.cursor
-      ? { ...entry, target_weight: input.weight, target_reps: input.reps }
+      ? {
+          ...entry,
+          target_weight: input.weight,
+          // Em exercicio cronometrado o alvo e o PLANO da serie e nao muda com
+          // o que saiu: segurar 20 s de uma prancha de 30 nao pode rebaixar a
+          // proxima serie para 20 — o alvo so muda quando voce decide.
+          target_reps: entry.measure === 'tempo' ? entry.target_reps : input.reps,
+        }
       : entry,
   )
   const nextItem = items[Math.min(nextCursor, items.length - 1)]

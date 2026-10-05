@@ -60,6 +60,11 @@ export interface AppSettings {
   rest_days: Weekday[]
   /** Quantas tentativas de coragem por semana voce quer bater. */
   courage_weekly_goal: number
+  /**
+   * Respostas da calibracao da trilha (pergunta -> opcao 0..3). E so delas que
+   * sai o ritmo de cada capitulo; ausente = trilha ainda nao calibrada.
+   */
+  track_answers?: Record<string, number>
   updated_at: string
 }
 
@@ -355,6 +360,33 @@ export interface CourageRejection {
   updated_at: string
 }
 
+/**
+ * Progresso num degrau de uma trilha pronta (o mapa da Coragem).
+ *
+ * O conteudo da trilha vive em codigo (src/lib/tracks.ts); aqui fica so o que e
+ * seu: quantas vezes tentou, quantas deram certo e quando fechou.
+ */
+export interface CourageTrackStep {
+  id: ID
+  user_id: string | null
+  /** Trilha a que o degrau pertence, ex.: 'carisma'. */
+  track_id: string
+  /** Degrau dentro da trilha, ex.: 'olhar-sorriso'. */
+  step_id: string
+  /** Tentativas totais, inclusive as que nao deram certo. */
+  attempts: number
+  /** Execucoes feitas. Toda execucao conta. */
+  done: number
+  /** Quantas dessas foram marcadas como faceis: cada uma vale por duas. */
+  easy: number
+  /** Quantas foram marcadas como dificeis: a primeira pede uma execucao a mais. */
+  hard: number
+  completed_at: string | null
+  /** "Isso ja e normal para mim": fechado sem ter sido treinado aqui. */
+  skipped_at: string | null
+  updated_at: string
+}
+
 /** Historico de mudancas de nota: o diario do progresso de cada degrau. */
 export interface CourageScoreChange {
   id: ID
@@ -378,6 +410,7 @@ export type SyncTable =
   | 'courage_attempts'
   | 'courage_score_changes'
   | 'courage_rejections'
+  | 'courage_track_steps'
 
 export interface OutboxEntry {
   seq?: number

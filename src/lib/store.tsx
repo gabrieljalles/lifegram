@@ -13,6 +13,7 @@ import {
   allCourageGoals,
   allCourageRejections,
   allCourageScoreChanges,
+  allCourageTrackSteps,
   allExercises,
   allRoutineExercises,
   allRoutines,
@@ -34,6 +35,7 @@ import type {
   CourageGoal,
   CourageRejection,
   CourageScoreChange,
+  CourageTrackStep,
   BodyWeightLog,
   Exercise,
   ID,
@@ -57,6 +59,7 @@ interface AppState {
   courageGoals: CourageGoal[]
   courageAttempts: CourageAttempt[]
   courageScoreChanges: CourageScoreChange[]
+  courageTrackSteps: CourageTrackStep[]
   courageRejections: CourageRejection[]
   active: ActiveWorkout | null
   settings: AppSettings
@@ -84,6 +87,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [courageGoals, setCourageGoals] = useState<CourageGoal[]>([])
   const [courageAttempts, setCourageAttempts] = useState<CourageAttempt[]>([])
   const [courageScoreChanges, setCourageScoreChanges] = useState<CourageScoreChange[]>([])
+  const [courageTrackSteps, setCourageTrackSteps] = useState<CourageTrackStep[]>([])
   const [courageRejections, setCourageRejections] = useState<CourageRejection[]>([])
   const [active, setActiveState] = useState<ActiveWorkout | null>(null)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
@@ -94,22 +98,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const reload = useCallback(async () => {
-    const [ex, rt, rex, ses, logs, bw, goals, attempts, changes, rejections, act, prefs, pending] =
-      await Promise.all([
-        allExercises(),
-        allRoutines(),
-        allRoutineExercises(),
-        allSessions(),
-        allSetLogs(),
-        allBodyWeightLogs(),
-        allCourageGoals(),
-        allCourageAttempts(),
-        allCourageScoreChanges(),
-        allCourageRejections(),
-        getActiveWorkout(),
-        getSettings(),
-        outboxCount(),
-      ])
+    const [
+      ex,
+      rt,
+      rex,
+      ses,
+      logs,
+      bw,
+      goals,
+      attempts,
+      changes,
+      rejections,
+      trilha,
+      act,
+      prefs,
+      pending,
+    ] = await Promise.all([
+      allExercises(),
+      allRoutines(),
+      allRoutineExercises(),
+      allSessions(),
+      allSetLogs(),
+      allBodyWeightLogs(),
+      allCourageGoals(),
+      allCourageAttempts(),
+      allCourageScoreChanges(),
+      allCourageRejections(),
+      allCourageTrackSteps(),
+      getActiveWorkout(),
+      getSettings(),
+      outboxCount(),
+    ])
     setExercises(ex)
     setRoutines(rt)
     setRoutineExercises(rex)
@@ -120,6 +139,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCourageAttempts(attempts)
     setCourageScoreChanges(changes)
     setCourageRejections(rejections)
+    setCourageTrackSteps(trilha)
     setActiveState(act ?? null)
     setSettings(prefs)
     setPendingCount(pending)
@@ -210,6 +230,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     courageAttempts,
     courageScoreChanges,
     courageRejections,
+    courageTrackSteps,
     active,
     settings,
     exerciseById,

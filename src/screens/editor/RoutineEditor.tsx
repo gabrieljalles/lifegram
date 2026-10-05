@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Button,
+  DurationField,
   Card,
   EmptyState,
   ExercisePhoto,
@@ -268,20 +269,21 @@ function RoutineItem({
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-4 gap-2">
+      <div className={`mt-3 grid gap-2 ${timed ? 'grid-cols-3' : 'grid-cols-4'}`}>
         <NumberField
           label="Séries"
           value={entry.target_sets}
           min={1}
           onChange={(value) => onUpdate({ target_sets: value })}
         />
-        <NumberField
-          label={timed ? 'Tempo s' : 'Reps'}
-          value={entry.target_reps}
-          min={1}
-          step={timed ? 5 : 1}
-          onChange={(value) => onUpdate({ target_reps: value })}
-        />
+        {!timed && (
+          <NumberField
+            label="Reps"
+            value={entry.target_reps}
+            min={1}
+            onChange={(value) => onUpdate({ target_reps: value })}
+          />
+        )}
         <NumberField
           label="Carga kg"
           value={entry.target_weight}
@@ -296,6 +298,28 @@ function RoutineItem({
           onChange={(value) => onUpdate({ rest_seconds: value })}
         />
       </div>
+
+      {timed && (
+        <div className="mt-2">
+          {exercise.segments.length > 0 ? (
+            <p className="rounded-xl border border-ink-700 bg-ink-850 px-3 py-2.5 text-[11px] leading-relaxed text-ink-400">
+              Exercício composto: cada série percorre {exercise.segments.length} blocos,{' '}
+              <span className="tnum font-semibold text-ink-300">
+                {formatClock(segmentsDuration(exercise.segments))}
+              </span>{' '}
+              no total. Para mudar, edite os blocos no exercício.
+            </p>
+          ) : (
+            <DurationField
+              label="Tempo por série"
+              value={entry.target_reps}
+              min={1}
+              max={3600}
+              onChange={(value) => onUpdate({ target_reps: value })}
+            />
+          )}
+        </div>
+      )}
 
       <button
         type="button"
