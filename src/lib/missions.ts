@@ -2,7 +2,7 @@ import { format, parseISO } from 'date-fns'
 import { generateBoss, weekSeed, type BossDesign } from './bossGen'
 import { stageToday } from './rejections'
 import { routinesForDay } from './stats'
-import { CARISMA, currentStepId, didToday, flatSteps } from './tracks'
+import { CARISMA, currentStepId, flatSteps } from './tracks'
 import { FUNNEL_XP, XP_RULES } from './xp'
 import type {
   AppSettings,
@@ -100,15 +100,27 @@ export function dailyMissions(input: MissionInput, now = new Date()): Mission[] 
     to: '/coragem',
   })
 
-  const stepId = currentStepId(CARISMA, input.trackSteps)
-  const step = flatSteps(CARISMA).find(({ step }) => step.id === stepId)?.step
+  // Ja treinou um degrau hoje: a missao mostra ESSE degrau, cumprido. Sem
+  // isso, ao fechar um degrau a trilha avancava e o proximo — ainda nao
+  // feito — aparecia marcado como cumprido.
+  const steps = flatSteps(CARISMA)
+  const doneToday = input.trackSteps
+    .filter(
+      (row) =>
+        row.track_id === CARISMA.id &&
+        row.done > 0 &&
+        new Date(row.updated_at).toDateString() === now.toDateString(),
+    )
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]
+  const stepId = doneToday?.step_id ?? currentStepId(CARISMA, input.trackSteps)
+  const step = steps.find(({ step }) => step.id === stepId)?.step
   if (step) {
     missions.push({
       id: 'trilha',
       icon: '🗺️',
       title: step.name,
-      detail: step.what,
-      done: didToday(input.trackSteps, CARISMA.id, now),
+      detail: doneToday ? 'Degrau de hoje feito. O próximo fica para amanhã.' : step.what,
+      done: Boolean(doneToday),
       xp: XP_RULES.trilha,
       to: '/coragem/mapa',
     })

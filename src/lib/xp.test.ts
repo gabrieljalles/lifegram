@@ -166,3 +166,37 @@ describe('gerador do chefao', () => {
     }
   })
 })
+
+describe('missao da trilha', () => {
+  const row = (step_id: string, done: number, updated: string, completed: string | null) => ({
+    id: step_id,
+    user_id: null,
+    track_id: 'carisma',
+    step_id,
+    attempts: done,
+    done,
+    easy: 0,
+    hard: 0,
+    completed_at: completed ? iso(completed) : null,
+    skipped_at: null,
+    updated_at: iso(updated),
+  })
+
+  it('degrau fechado hoje: mostra ele cumprido, nao o proximo', async () => {
+    const { flatSteps, CARISMA } = await import('./tracks')
+    const [first, second] = flatSteps(CARISMA).map(({ step }) => step)
+    const input = {
+      routines: [],
+      sessions: [],
+      settings: DEFAULT_SETTINGS,
+      rejections: [],
+      trackSteps: [row(first.id, 1, '2026-10-14T10:00:00', '2026-10-14T10:00:00')],
+    }
+    const hoje = dailyMissions(input, now).find((m) => m.id === 'trilha')!
+    expect(hoje).toMatchObject({ title: first.name, done: true })
+
+    // No dia seguinte a missao ja aponta para o proximo, em aberto.
+    const amanha = dailyMissions(input, new Date('2026-10-15T09:00:00')).find((m) => m.id === 'trilha')!
+    expect(amanha).toMatchObject({ title: second.name, done: false })
+  })
+})
