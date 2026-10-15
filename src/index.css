@@ -102,7 +102,65 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 .animate-glow { animation: glow-pulse 1.8s ease-in-out infinite; }
 
+/* ------------------------------------------------------------ camada de jogo */
+
+/* Card de destaque: brilho diagonal sobre o fundo escuro. */
+.game-card {
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(99, 102, 241, 0.28), transparent 60%),
+    radial-gradient(90% 80% at 100% 100%, rgba(245, 158, 11, 0.14), transparent 60%),
+    #111823;
+}
+
+/* Escudo do nivel: ouro com corte de brasao. */
+.level-shield {
+  background: linear-gradient(160deg, #fde68a, #f59e0b 55%, #b45309);
+  clip-path: polygon(50% 0, 100% 14%, 100% 62%, 50% 100%, 0 62%, 0 14%);
+  filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.55));
+}
+
+/* Barra de XP com brilho que corre: parece viva, pede para encher. */
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.xp-fill {
+  background: linear-gradient(90deg, #6366f1, #a78bfa 40%, #fde68a 50%, #a78bfa 60%, #6366f1);
+  background-size: 200% 100%;
+  animation: shimmer 2.6s linear infinite;
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.6);
+}
+
+/* Barra de vida do chefao. */
+.hp-fill {
+  background: linear-gradient(90deg, #dc2626, #f87171);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.55);
+}
+
+@keyframes wobble {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-6deg) scale(1.05); }
+  75% { transform: rotate(6deg) scale(1.05); }
+}
+.animate-wobble { animation: wobble 1.4s ease-in-out infinite; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.animate-float { animation: float 2.4s ease-in-out infinite; }
+
+/* Contagem dos 3 segundos: cada numero explode na tela. */
+@keyframes count-pop {
+  0% { transform: scale(2.4); opacity: 0; }
+  30% { transform: scale(1); opacity: 1; }
+  85% { transform: scale(0.9); opacity: 1; }
+  100% { transform: scale(0.6); opacity: 0; }
+}
+.animate-count { animation: count-pop 1s ease-out both; }
+
 @media (prefers-reduced-motion: reduce) {
+  .xp-fill, .animate-wobble, .animate-float, .animate-count { animation: none; }
   .animate-pop-in, .animate-rise, .animate-pulse-ring, .animate-star, .animate-glow {
     animation: none;
   }

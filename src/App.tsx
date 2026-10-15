@@ -1,7 +1,7 @@
 import { Suspense, lazy } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useApp } from './lib/store'
-import Hub from './screens/Hub'
+import Today from './screens/Today'
 import Home from './screens/Home'
 import ActiveWorkout from './screens/ActiveWorkout'
 import WorkoutSummary from './screens/WorkoutSummary'
@@ -27,96 +27,86 @@ const ExerciseDetail = lazy(() => import('./screens/ExerciseDetail'))
 /** A tela de treino e imersiva: sem barra de navegacao competindo com o foco. */
 const IMMERSIVE = ['/treino', '/resumo', '/coragem/mapa']
 
-/** Rotas que pertencem a area de exercicios (mudam a barra de baixo). */
-const GYM = ['/academia', '/stats', '/treinos', '/exercicio']
-
-/** Rotas da escada do medo (tambem trocam a barra de baixo). */
-const COURAGE = ['/coragem']
-
 interface NavItem {
   to: string
   label: string
   icon: string
-  /** Só a raiz precisa de match exato; o resto casa por prefixo. */
-  exact?: boolean
+  /** Prefixos que acendem este item. */
+  match: (pathname: string) => boolean
 }
+
+/**
+ * Barra fixa: os mesmos quatro destinos em qualquer tela. Antes ela mudava
+ * por area e a pessoa nunca sabia onde estava.
+ */
+const NAV: NavItem[] = [
+  {
+    to: '/',
+    label: 'Hoje',
+    icon: 'M12 2l2.4 6.9H22l-6 4.6 2.3 7.1L12 16.2l-6.3 4.4L8 13.5 2 8.9h7.6z',
+    match: (p) => p === '/',
+  },
+  {
+    to: '/academia',
+    label: 'Treino',
+    icon: 'M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10',
+    match: (p) => ['/academia', '/treinos', '/exercicio'].some((x) => p.startsWith(x)),
+  },
+  {
+    to: '/coragem',
+    label: 'Coragem',
+    icon: 'M12 3c3 3 5 6 5 9a5 5 0 01-10 0c0-1.5.5-3 1.5-4 .5 2 1.5 3 2.5 3 0-3 0-5 1-8z',
+    match: (p) => p.startsWith('/coragem') && !p.startsWith('/coragem/painel'),
+  },
+  {
+    to: '/desempenho',
+    label: 'Progresso',
+    icon: 'M4 19V9M10 19V5M16 19v-7M22 19H2',
+    match: (p) => ['/desempenho', '/stats', '/coragem/painel'].some((x) => p.startsWith(x)),
+  },
+]
 
 function BottomNav() {
   const { pathname } = useLocation()
-  // A roda do hub ja e a navegacao: uma barra em cima dela so competiria.
-  if (pathname === '/') return null
   if (IMMERSIVE.some((prefix) => pathname.startsWith(prefix))) return null
-
-  const HOME: NavItem = {
-    to: '/',
-    label: 'Início',
-    icon: 'M4 11l8-7 8 7v8a1 1 0 01-1 1h-5v-6H10v6H5a1 1 0 01-1-1z',
-    exact: true,
-  }
-  const SETTINGS: NavItem = {
-    to: '/config',
-    label: 'Ajustes',
-    icon: 'M12 15a3 3 0 100-6 3 3 0 000 6zM3 12h3m12 0h3M12 3v3m0 12v3',
-  }
-
-  // Dentro da area de exercicios a barra vira a da academia; fora dela, a do
-  // hub. Assim cada contexto mostra os atalhos que fazem sentido nele.
-  const items: NavItem[] = COURAGE.some((prefix) => pathname.startsWith(prefix))
-    ? [
-        {
-          to: '/coragem',
-          label: 'Degraus',
-          icon: 'M4 20h4v-4H4zM10 20h4v-9h-4zM16 20h4V4h-4z',
-          exact: true,
-        },
-        {
-          to: '/coragem/painel',
-          label: 'Painel',
-          icon: 'M4 19V9M10 19V5M16 19v-7M22 19H2',
-        },
-        HOME,
-      ]
-    : GYM.some((prefix) => pathname.startsWith(prefix))
-      ? [
-          { to: '/academia', label: 'Treinar', icon: 'M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10' },
-          { to: '/stats', label: 'Progresso', icon: 'M4 19V9M10 19V5M16 19v-7M22 19H2' },
-          { to: '/treinos', label: 'Montar', icon: 'M4 6h16M4 12h16M4 18h10' },
-          HOME,
-        ]
-      : [
-          HOME,
-          { to: '/desempenho', label: 'Desempenho', icon: 'M4 19V9M10 19V5M16 19v-7M22 19H2' },
-          SETTINGS,
-        ]
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-700 bg-ink-950/95 backdrop-blur safe-b">
       <div className="mx-auto flex max-w-lg">
-        {items.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.exact}
-            className={({ isActive }) =>
-              `flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
-                isActive ? 'text-brand-400' : 'text-ink-400'
-              }`
-            }
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              className="h-5 w-5"
-              aria-hidden="true"
+        {NAV.map((item) => {
+          const on = item.match(pathname)
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              aria-current={on ? 'page' : undefined}
+              className={`relative flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-bold transition-colors ${
+                on ? 'text-brand-400' : 'text-ink-400'
+              }`}
             >
-              <path d={item.icon} />
-            </svg>
-            {item.label}
-          </NavLink>
-        ))}
+              {on && (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-0 h-0.5 w-8 rounded-full bg-brand-400 shadow-[0_0_10px_rgba(129,140,248,0.9)]"
+                />
+              )}
+              <svg
+                viewBox="0 0 24 24"
+                fill={on ? 'currentColor' : 'none'}
+                fillOpacity={on ? 0.2 : 0}
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <path d={item.icon} />
+              </svg>
+              {item.label}
+            </NavLink>
+          )
+        })}
       </div>
     </nav>
   )
@@ -125,7 +115,7 @@ function BottomNav() {
 export default function App() {
   const { ready } = useApp()
   const { pathname } = useLocation()
-  const immersive = pathname === '/' || IMMERSIVE.some((prefix) => pathname.startsWith(prefix))
+  const immersive = IMMERSIVE.some((prefix) => pathname.startsWith(prefix))
 
   if (!ready) {
     return (
@@ -146,7 +136,7 @@ export default function App() {
           }
         >
           <Routes>
-            <Route path="/" element={<Hub />} />
+            <Route path="/" element={<Today />} />
             <Route path="/academia" element={<Home />} />
             <Route path="/desempenho" element={<Performance />} />
             <Route path="/coragem" element={<CourageHome />} />

@@ -13,9 +13,15 @@ import {
   pendingOf,
   weeklyStreak,
 } from '../../lib/courage'
-import { addRejection, undoLastRejection } from '../../lib/courageActions'
+import { addRejection, setRejectionContext, undoLastRejection } from '../../lib/courageActions'
+import ThreeSeconds from '../../components/ThreeSeconds'
+import { ContextPicker } from '../../components/game'
 import {
+  FUNNEL_STAGES,
   REJECTION_BADGES,
+  contextBreakdown,
+  funnelCounts,
+  onlyNaos,
   praiseFor,
   rejectionProgress,
   rejectionStreak,
@@ -24,9 +30,26 @@ import {
 import { CARISMA, currentStepId } from '../../lib/tracks'
 import { useApp } from '../../lib/store'
 import { vibrate } from '../../lib/timer'
-import { COURAGE_STATUS_LABEL, type CourageGoal, type CourageStatus } from '../../lib/types'
+import {
+  COURAGE_STATUS_LABEL,
+  type CourageGoal,
+  type CourageStatus,
+  type FunnelContext,
+  type FunnelStage,
+} from '../../lib/types'
 
 type Filter = 'todos' | CourageStatus
+
+/**
+ * Visual de cada etapa do funil. A largura cai etapa a etapa (o formato de
+ * funil) e a cor esquenta do vermelho na boca ao verde no fundo.
+ */
+const FUNNEL_STYLE: Record<FunnelStage, { width: string; bar: string; text: string }> = {
+  nao: { width: '100%', bar: 'bg-red-500/20 border-red-500/60', text: 'text-red-400' },
+  sim: { width: '84%', bar: 'bg-fire-500/20 border-fire-500/60', text: 'text-fire-400' },
+  encontro: { width: '68%', bar: 'bg-pr-500/20 border-pr-500/60', text: 'text-pr-400' },
+  sexo: { width: '52%', bar: 'bg-go-500/20 border-go-500/60', text: 'text-go-400' },
+}
 
 const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: 'todos', label: 'Todos' },
@@ -46,6 +69,9 @@ export default function CourageHome() {
     detail: string
   } | null>(null)
   const [savingNo, setSavingNo] = useState(false)
+  const [threeSeconds, setThreeSeconds] = useState(false)
+  /** Ultimo registro do funil: recebe o "onde foi?" logo depois do toque. */
+  const [last, setLast] = useState<{ id: string; context: FunnelContext | null } | null>(null)
   /** Janela curta de arrependimento: toque errado nao pode sujar a contagem. */
   const [undoable, setUndoable] = useState(false)
   // Guardado para poder cancelar: sem isso, o timer de um registro antigo
@@ -58,40 +84,66 @@ export default function CourageHome() {
     }
   }, [])
 
-  const naos = useMemo(() => rejectionProgress(courageRejections.length), [courageRejections])
-  const naosSemana = useMemo(() => rejectionsThisWeek(courageRejections), [courageRejections])
-  const naosSeguidos = useMemo(() => rejectionStreak(courageRejections), [courageRejections])
+  const listaNaos = useMemo(() => onlyNaos(courageRejections), [courageRejections])
+  const funil = useMemo(() => funnelCounts(courageRejections), [courageRejections])
+  const naos = useMemo(() => rejectionProgress(listaNaos.length), [listaNaos])
+  const naosSemana = useMemo(() => rejectionsThisWeek(listaNaos), [listaNaos])
+  const naosSeguidos = useMemo(() => rejectionStreak(listaNaos), [listaNaos])
 
-  const registrarNao = async () => {
+  const registrar = async (kind: FunnelStage) => {
     if (savingNo) return
     setSavingNo(true)
     try {
-      const total = courageRejections.length + 1
-      await addRejection()
+      const total = funil[kind] + 1
+      const item = await addRejection(null, kind)
+      setLast({ id: item.id, context: null })
       await reload()
 
-      const faixaNova = REJECTION_BADGES.find((badge) => badge.at === total) ?? null
-      vibrate(faixaNova ? [120, 60, 120, 60, 220] : 60)
-      setCelebration(
-        faixaNova
-          ? {
-              icon: faixaNova.icon,
-              label: faixaNova.name,
-              detail: `${total}º não — faixa nova desbloqueada`,
-            }
-          : { icon: '🏆', label: `Não nº ${total}`, detail: praiseFor(Math.random()) },
-      )
+      if (kind === 'nao') {
+        const faixaNova = REJECTION_BADGES.find((badge) => badge.at === total) ?? null
+        vibrate(faixaNova ? [120, 60, 120, 60, 220] : 60)
+        setCelebration(
+          faixaNova
+            ? {
+                icon: faixaNova.icon,
+                label: faixaNova.name,
+                detail: `${total}º não — faixa nova desbloqueada`,
+              }
+            : { icon: '🏆', label: `Não nº ${total}`, detail: praiseFor(Math.random()) },
+        )
+      } else {
+        const meta = FUNNEL_STAGES.find((stage) => stage.id === kind)!
+        vibrate([120, 60, 220])
+        setCelebration({
+          icon: meta.icon,
+          label: `${meta.single} nº ${total}`,
+          detail: 'Os nãos lá de cima trouxeram você até aqui.',
+        })
+      }
       if (undoTimer.current !== null) window.clearTimeout(undoTimer.current)
       setUndoable(true)
-      undoTimer.current = window.setTimeout(() => setUndoable(false), 12000)
+      undoTimer.current = window.setTimeout(() => {
+        setUndoable(false)
+        setLast(null)
+      }, 20000)
     } finally {
       setSavingNo(false)
     }
   }
 
+  const marcarLugar = async (context: FunnelContext) => {
+    if (!last) return
+    setLast({ ...last, context })
+    await setRejectionContext(last.id, context)
+    await reload()
+  }
+
+  const lugares = useMemo(() => contextBreakdown(courageRejections), [courageRejections])
+
   const desfazerNao = async () => {
     if (undoTimer.current !== null) window.clearTimeout(undoTimer.current)
     setUndoable(false)
+    setLast(null)
     await undoLastRejection()
     await reload()
   }
@@ -147,9 +199,26 @@ export default function CourageHome() {
             ? 'Sua escada do medo, um degrau por vez'
             : `${overall.goals} ${overall.goals === 1 ? 'objetivo' : 'objetivos'} · ${overall.normalized} ${overall.normalized === 1 ? 'normalizado' : 'normalizados'}`
         }
-        back="/"
         action={
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              aria-label="Abrir o painel da coragem"
+              onClick={() => navigate('/coragem/painel')}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-ink-600 text-ink-100 active:bg-ink-800"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <path d="M4 19V9M10 19V5M16 19v-7M22 19H2" />
+              </svg>
+            </button>
             {/* Quadrado com o mapa: atalho para a trilha pronta, para quem abre
                 a Coragem sem saber o que fazer hoje. O ponto aceso diz que ha
                 degrau esperando. */}
@@ -187,53 +256,107 @@ export default function CourageHome() {
       {/* Colecao de naos: fica fora do bloco de objetivos de proposito —
           contar "nao" nao depende de ter escada montada, e e o primeiro
           passo de quem ainda nao criou nenhum degrau. */}
-      <Section title="Coleção de nãos">
-        <Card className="border-fire-500/40 bg-fire-600/10 p-4">
-          <div className="flex items-center gap-4">
-            <div className="shrink-0 text-center">
-              <p className="tnum text-4xl font-black leading-none text-fire-400">{naos.total}</p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
-                {naos.total === 1 ? 'não' : 'nãos'}
-              </p>
-            </div>
+      <div className="px-4 pt-4">
+        <button
+          type="button"
+          onClick={() => setThreeSeconds(true)}
+          className="game-card flex w-full items-center gap-3.5 rounded-3xl border-2 border-fire-500/60 p-4 text-left shadow-[0_0_28px_rgba(249,115,22,0.25)] transition-transform active:scale-[0.98]"
+        >
+          <span className="animate-float text-4xl" aria-hidden="true">
+            ⚡
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-lg font-black tracking-tight text-fire-400">
+              Regra dos 3 segundos
+            </span>
+            <span className="block text-xs leading-snug text-ink-300">
+              Viu alguém? Toca aqui, conta 3-2-1 e vai antes do medo montar a desculpa.
+            </span>
+          </span>
+        </button>
+      </div>
 
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold">
-                {naos.badge ? (
-                  <>
-                    <span aria-hidden="true">{naos.badge.icon}</span> {naos.badge.name}
-                  </>
-                ) : (
-                  <span className="text-ink-300">O primeiro não é o mais caro</span>
-                )}
-              </p>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800">
-                <div
-                  className="h-full rounded-full bg-fire-500 transition-[width] duration-500"
-                  style={{ width: `${naos.ratio * 100}%` }}
-                />
-              </div>
-              <p className="mt-1.5 text-[11px] leading-tight text-ink-400">
-                {naos.next
-                  ? `faltam ${naos.missing} para ${naos.next.name}`
-                  : 'todas as faixas conquistadas'}
-              </p>
+      <Section title="Funil da coragem">
+        <Card className="p-4">
+          <ol className="flex flex-col items-center gap-1.5">
+            {FUNNEL_STAGES.map((stage, index) => {
+              const style = FUNNEL_STYLE[stage.id]
+              const count = funil[stage.id]
+              const above = index > 0 ? funil[FUNNEL_STAGES[index - 1].id] : 0
+              return (
+                <li key={stage.id} className="w-full">
+                  <button
+                    type="button"
+                    onClick={() => void registrar(stage.id)}
+                    disabled={savingNo}
+                    aria-label={`${stage.action} (${count} até agora)`}
+                    style={{ width: style.width }}
+                    className={`mx-auto flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left transition-transform active:scale-[0.98] disabled:opacity-60 ${style.bar}`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-bold text-ink-100">
+                        {stage.label}
+                      </span>
+                      {index > 0 && above > 0 && (
+                        <span className="tnum block truncate text-[10px] text-ink-400">
+                          {Math.round((count / above) * 100)}% da etapa acima
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className={`tnum text-2xl font-black leading-none ${style.text}`}>
+                        {count}
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className={`flex h-6 w-6 items-center justify-center rounded-full bg-ink-950/40 text-sm font-bold ${style.text}`}
+                      >
+                        +
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ol>
+          {last ? (
+            <div className="mt-3">
+              <ContextPicker value={last.context} onPick={(c) => void marcarLugar(c)} />
             </div>
+          ) : (
+            <p className="mt-2 text-center text-[10px] text-ink-400">
+              Toque numa etapa para registrar.
+            </p>
+          )}
+
+          {/* As faixas continuam contando so os naos: e o unico numero que
+              depende so de voce pedir. */}
+          <div className="mt-3">
+            <p className="truncate text-xs font-bold">
+              {naos.badge ? (
+                <>
+                  <span aria-hidden="true">{naos.badge.icon}</span> {naos.badge.name}
+                </>
+              ) : (
+                <span className="text-ink-300">O primeiro não é o mais caro</span>
+              )}
+            </p>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-800">
+              <div
+                className="h-full rounded-full bg-red-500 transition-[width] duration-500"
+                style={{ width: `${naos.ratio * 100}%` }}
+              />
+            </div>
+            <p className="mt-1 text-[11px] leading-tight text-ink-400">
+              {naos.next
+                ? `faltam ${naos.missing} nãos para ${naos.next.name}`
+                : 'todas as faixas conquistadas'}
+            </p>
           </div>
-
-          <Button
-            className="mt-3.5 w-full"
-            size="lg"
-            variant="go"
-            onClick={() => void registrarNao()}
-            disabled={savingNo}
-          >
-            + Tomei um não
-          </Button>
 
           <div className="mt-2 flex items-center justify-center gap-2 text-[11px] text-ink-400">
             <span className="tnum">
-              {naosSemana} esta semana
+              {naosSemana} {naosSemana === 1 ? 'não' : 'nãos'} esta semana
               {naosSeguidos > 1 && ` · ${naosSeguidos} dias seguidos`}
             </span>
             {undoable && (
@@ -248,6 +371,32 @@ export default function CourageHome() {
           </div>
         </Card>
       </Section>
+
+      {lugares.length > 0 && (
+        <Section title="Onde você converte mais">
+          <Card className="divide-y divide-ink-700/60">
+            {lugares.map((row, i) => (
+              <div key={row.id} className="flex items-center gap-3 px-3.5 py-2.5">
+                <span className="w-5 text-center text-sm" aria-hidden="true">
+                  {i === 0 && row.yesRate ? '👑' : row.icon}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold">{row.label}</span>
+                  <span className="tnum block text-[11px] text-ink-400">
+                    {row.counts.nao} nãos · {row.counts.sim} sims · {row.counts.encontro} encontros
+                  </span>
+                </span>
+                <span className="tnum text-right">
+                  <span className="block text-base font-black text-fire-400">
+                    {row.yesRate === null ? '—' : `${Math.round(row.yesRate * 100)}%`}
+                  </span>
+                  <span className="block text-[10px] text-ink-400">de sim</span>
+                </span>
+              </div>
+            ))}
+          </Card>
+        </Section>
+      )}
 
       {courageGoals.length === 0 ? (
         <EmptyState
@@ -383,6 +532,7 @@ export default function CourageHome() {
         </>
       )}
 
+      {threeSeconds && <ThreeSeconds onClose={() => setThreeSeconds(false)} />}
       {celebration && (
         <PRCelebration
           icon={celebration.icon}

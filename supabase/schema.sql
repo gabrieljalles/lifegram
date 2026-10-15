@@ -212,6 +212,12 @@ create table if not exists public.courage_rejections (
   id          uuid primary key,
   user_id     uuid not null references auth.users (id) on delete cascade,
   note        text,
+  -- Etapa do funil: nao (boca), sim, encontro, sexo (fundo).
+  kind        text not null default 'nao'
+                check (kind in ('nao', 'sim', 'encontro', 'sexo')),
+  -- Onde foi: rua, festa, app... Opcional.
+  context     text check (context is null or context in
+                ('rua', 'festa', 'app', 'academia', 'trabalho', 'faculdade', 'outro')),
   happened_at timestamptz not null,
   updated_at  timestamptz not null default now()
 );

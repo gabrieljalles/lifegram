@@ -11,6 +11,8 @@ import {
   totalVolume,
 } from '../lib/stats'
 import { useApp } from '../lib/store'
+import { useGame } from '../lib/useGame'
+import { LevelCard } from '../components/game'
 import { overallStats } from '../lib/courage'
 import { ACCENT_TEXT, SKILL_AREAS, type SkillSnapshot } from '../lib/skills'
 
@@ -22,6 +24,7 @@ import { ACCENT_TEXT, SKILL_AREAS, type SkillSnapshot } from '../lib/skills'
 export default function Performance() {
   const navigate = useNavigate()
   const { sessions, setLogs, routines, settings, courageGoals, courageAttempts } = useApp()
+  const { xp } = useGame()
 
   const streak = useMemo(
     () => computeScheduleStreak(sessions, scheduleOf(routines, settings)),
@@ -136,12 +139,26 @@ export default function Performance() {
   return (
     <div>
       <Header
-        title="Desempenho"
+        title="Progresso"
         subtitle={`${medidas} de ${snapshots.length} ${
           snapshots.length === 1 ? 'área medida' : 'áreas com dados'
         }`}
-        back="/"
       />
+
+      <div className="px-4 pt-3">
+        <LevelCard xp={xp}>
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-ink-700/60 pt-3 text-center">
+            <div>
+              <p className="tnum text-lg font-black text-brand-400">{xp.breakdown.treino}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">XP de treino</p>
+            </div>
+            <div>
+              <p className="tnum text-lg font-black text-fire-400">{xp.breakdown.coragem}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">XP de coragem</p>
+            </div>
+          </div>
+        </LevelCard>
+      </div>
 
       {snapshots.map((snapshot) => (
         <Section key={snapshot.area.id} title={snapshot.area.name}>
@@ -192,9 +209,11 @@ export default function Performance() {
                 className="mt-3 w-full"
                 variant="outline"
                 size="sm"
-                onClick={() => navigate(snapshot.area.to as string)}
+                onClick={() =>
+                  navigate(snapshot.area.id === 'coragem' ? '/coragem/painel' : '/stats')
+                }
               >
-                Abrir {snapshot.area.name}
+                Ver gráficos de {snapshot.area.name.toLowerCase()}
               </Button>
             )}
           </Card>

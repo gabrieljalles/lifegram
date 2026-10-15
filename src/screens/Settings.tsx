@@ -84,7 +84,7 @@ export default function Settings() {
 
   return (
     <div>
-      <Header title="Ajustes" />
+      <Header title="Ajustes" back="/" />
 
       <Section title="Sincronização">
         <Card className="p-4">

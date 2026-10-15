@@ -20,6 +20,8 @@ import {
   type CourageGoal,
   type CourageTrackStep,
   type CourageRejection,
+  type FunnelContext,
+  type FunnelStage,
   type CouragePeople,
   type CouragePlace,
   type ID,
@@ -205,17 +207,32 @@ export async function refreshNormalized(goal: CourageGoal): Promise<boolean> {
  * Registra um "nao" tomado. Um toque, sem formulario: o valor do contador
  * vem de ele ser facil de alimentar na hora, ainda na rua.
  */
-export async function addRejection(note?: string | null): Promise<CourageRejection> {
+export async function addRejection(
+  note?: string | null,
+  kind: FunnelStage = 'nao',
+): Promise<CourageRejection> {
   const now = nowISO()
   const rejection: CourageRejection = {
     id: newId(),
     user_id: await currentUserId(),
     note: note?.trim() || null,
+    kind,
     happened_at: now,
     updated_at: now,
   }
   await putCourageRejection(rejection)
   return rejection
+}
+
+/** Marca onde foi o registro — vem depois do toque, nunca atrasa o registro. */
+export async function setRejectionContext(
+  id: string,
+  context: FunnelContext | null,
+): Promise<void> {
+  const all = await allCourageRejections()
+  const item = all.find((row) => row.id === id)
+  if (!item) return
+  await putCourageRejection({ ...item, context, updated_at: nowISO() })
 }
 
 /** Desfaz o ultimo registro — toque errado nao pode sujar a coleção. */

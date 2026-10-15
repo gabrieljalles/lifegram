@@ -351,11 +351,28 @@ export interface CourageAttempt {
  * para o registro nao acontecer — e o que se quer treinar e justamente pedir
  * mesmo sabendo que pode levar nao.
  */
+/** Etapas do funil da coragem, da boca (mais larga) para o fundo. */
+export type FunnelStage = 'nao' | 'sim' | 'encontro' | 'sexo'
+
+/** Onde a abordagem aconteceu — para descobrir onde voce converte mais. */
+export type FunnelContext =
+  | 'rua'
+  | 'festa'
+  | 'app'
+  | 'academia'
+  | 'trabalho'
+  | 'faculdade'
+  | 'outro'
+
 export interface CourageRejection {
   id: ID
   user_id: string | null
   /** Anotacao opcional: onde foi, o que pediu. Nunca obrigatoria. */
   note: string | null
+  /** Etapa do funil. Ausente nos registros antigos, que eram todos "nao". */
+  kind?: FunnelStage
+  /** Onde foi (rua, festa, app...). Opcional: marcado depois do toque. */
+  context?: FunnelContext | null
   happened_at: string
   updated_at: string
 }

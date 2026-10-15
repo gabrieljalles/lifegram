@@ -1,5 +1,5 @@
 import { differenceInCalendarDays, parseISO, startOfWeek } from 'date-fns'
-import type { CourageRejection } from './types'
+import type { CourageRejection, FunnelContext, FunnelStage } from './types'
 
 /**
  * Colecao de naos.
@@ -10,6 +10,88 @@ import type { CourageRejection } from './types'
  * depende de voce. E o mesmo principio da escada do medo: exposicao repetida
  * ate o "nao" perder o peso que o medo inventou.
  */
+
+/* ---------------------------------------------------------------- funil */
+
+export interface FunnelStageMeta {
+  id: FunnelStage
+  label: string
+  single: string
+  /** Texto do botao de registro. */
+  action: string
+  icon: string
+}
+
+/**
+ * O funil, da boca para o fundo. Cada etapa e mais estreita que a anterior —
+ * e o formato que lembra que muito "nao" la em cima e o que alimenta o resto.
+ */
+export const FUNNEL_STAGES: FunnelStageMeta[] = [
+  { id: 'nao', label: 'Nãos', single: 'Não', action: 'Tomei um não', icon: '🏆' },
+  { id: 'sim', label: 'Sims', single: 'Sim', action: 'Ganhei um sim', icon: '✅' },
+  { id: 'encontro', label: 'Encontros', single: 'Encontro', action: 'Marquei um encontro', icon: '☕' },
+  { id: 'sexo', label: 'Sexo', single: 'Sexo', action: 'Rolou sexo', icon: '🔥' },
+]
+
+/** Registros antigos nao tem `kind`: todos eram "nao". */
+export const stageOf = (item: Pick<CourageRejection, 'kind'>): FunnelStage => item.kind ?? 'nao'
+
+/** So os "nao" — base das faixas, da sequencia e da trilha. */
+export const onlyNaos = (list: CourageRejection[]): CourageRejection[] =>
+  list.filter((item) => stageOf(item) === 'nao')
+
+export function funnelCounts(list: CourageRejection[]): Record<FunnelStage, number> {
+  const counts: Record<FunnelStage, number> = { nao: 0, sim: 0, encontro: 0, sexo: 0 }
+  for (const item of list) counts[stageOf(item)]++
+  return counts
+}
+
+/* ------------------------------------------------------------ contexto */
+
+export const FUNNEL_CONTEXTS: Array<{ id: FunnelContext; label: string; icon: string }> = [
+  { id: 'rua', label: 'Rua', icon: '🚶' },
+  { id: 'festa', label: 'Festa', icon: '🎉' },
+  { id: 'app', label: 'App', icon: '📱' },
+  { id: 'academia', label: 'Academia', icon: '🏋️' },
+  { id: 'trabalho', label: 'Trabalho', icon: '💼' },
+  { id: 'faculdade', label: 'Faculdade', icon: '🎓' },
+  { id: 'outro', label: 'Outro', icon: '📍' },
+]
+
+export interface ContextRow {
+  id: FunnelContext
+  label: string
+  icon: string
+  counts: Record<FunnelStage, number>
+  /** Abordagens que tiveram resposta: nao + sim. */
+  asks: number
+  /** Fracao de sim entre as abordagens (0 a 1). null = nenhuma abordagem. */
+  yesRate: number | null
+}
+
+/**
+ * Funil quebrado por lugar, do que mais converte para o que menos. So entra
+ * contexto com registro — lugar sem dado nao vira linha de zero.
+ */
+export function contextBreakdown(list: CourageRejection[]): ContextRow[] {
+  const rows: ContextRow[] = []
+  for (const meta of FUNNEL_CONTEXTS) {
+    const items = list.filter((item) => item.context === meta.id)
+    if (items.length === 0) continue
+    const counts = funnelCounts(items)
+    const asks = counts.nao + counts.sim
+    rows.push({ ...meta, counts, asks, yesRate: asks > 0 ? counts.sim / asks : null })
+  }
+  return rows.sort((a, b) => (b.yesRate ?? -1) - (a.yesRate ?? -1) || b.asks - a.asks)
+}
+
+/** Quantos registros de uma etapa caíram hoje. */
+export function stageToday(list: CourageRejection[], stage: FunnelStage, now = new Date()): number {
+  const today = now.toDateString()
+  return list.filter(
+    (item) => stageOf(item) === stage && new Date(item.happened_at).toDateString() === today,
+  ).length
+}
 
 export interface RejectionBadge {
   /** Quantos naos essa faixa exige. */

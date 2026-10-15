@@ -53,7 +53,7 @@ export default function CourageDashboard() {
   if (courageGoals.length === 0) {
     return (
       <div>
-        <Header title="Painel da coragem" back="/coragem" />
+        <Header title="Painel da coragem" back="/desempenho" />
         <EmptyState
           icon="📊"
           title="Sem dados ainda"
@@ -73,7 +73,7 @@ export default function CourageDashboard() {
       <Header
         title="Painel da coragem"
         subtitle={`${overall.completed} ${overall.completed === 1 ? 'tentativa completa' : 'tentativas completas'}`}
-        back="/coragem"
+        back="/desempenho"
       />
 
       <Section title="Resumo">

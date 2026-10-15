@@ -143,7 +143,7 @@ export default function Stats() {
     return (
       <div>
         <header className="safe-t px-4 pb-2 pt-4">
-          <h1 className="text-2xl font-bold tracking-tight">Progresso</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Gráficos de treino</h1>
         </header>
         {bodyWeightSection}
         <EmptyState
@@ -158,7 +158,7 @@ export default function Stats() {
   return (
     <div>
       <header className="safe-t px-4 pb-3 pt-4">
-        <h1 className="text-2xl font-bold tracking-tight">Progresso</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Gráficos de treino</h1>
         <div className="mt-3 flex rounded-xl bg-ink-850 p-1">
           {PERIODS.map((option) => (
             <button

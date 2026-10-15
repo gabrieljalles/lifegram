@@ -29,6 +29,7 @@ import {
   type TrackChapter,
   type TrackStep,
 } from '../../lib/tracks'
+import { onlyNaos } from '../../lib/rejections'
 import { useApp } from '../../lib/store'
 import { vibrate } from '../../lib/timer'
 import type { CourageTrackStep } from '../../lib/types'
@@ -343,7 +344,7 @@ export default function CourageTrack() {
               : null
           }
           busy={busy}
-          rejections={courageRejections.length}
+          rejections={onlyNaos(courageRejections).length}
           onClose={() => setAberto(null)}
           onDone={(rating, ouviuNao) =>
             void registrar(openStep, aberto.chapter, rating, ouviuNao, Boolean(aberto.teste))
