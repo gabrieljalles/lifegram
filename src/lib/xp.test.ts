@@ -145,3 +145,24 @@ describe('dia perfeito e chefao', () => {
     expect(boss.defeated).toBe(false)
   })
 })
+
+describe('gerador do chefao', () => {
+  it('mesma semana, mesmo chefao; semanas diferentes variam', async () => {
+    const { generateBoss, weekSeed } = await import('./bossGen')
+    const seg = weekSeed(new Date('2026-10-12T10:00:00'))
+    expect(weekSeed(new Date('2026-10-18T22:00:00'))).toBe(seg)
+    expect(weekSeed(new Date('2026-10-19T08:00:00'))).not.toBe(seg)
+    expect(generateBoss(seg)).toEqual(generateBoss(seg))
+
+    const nomes = new Set(Array.from({ length: 52 }, (_, i) => generateBoss(202600 + i).name))
+    expect(nomes.size).toBeGreaterThan(20)
+  })
+
+  it('nome combina com as pecas', async () => {
+    const { generateBoss } = await import('./bossGen')
+    for (let seed = 0; seed < 200; seed++) {
+      const boss = generateBoss(seed)
+      if (boss.traits.eyes === 1) expect(boss.name.startsWith('Ciclope')).toBe(true)
+    }
+  })
+})

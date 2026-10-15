@@ -1,4 +1,5 @@
 import { format, parseISO } from 'date-fns'
+import { generateBoss, weekSeed, type BossDesign } from './bossGen'
 import { stageToday } from './rejections'
 import { routinesForDay } from './stats'
 import { CARISMA, currentStepId, didToday, flatSteps } from './tracks'
@@ -193,18 +194,11 @@ export function perfectDays(
 
 /* ------------------------------------------------------- chefao da semana */
 
-const BOSSES = [
-  { name: 'Dragão da Preguiça', icon: '🐉' },
-  { name: 'Golem do Medo', icon: '🗿' },
-  { name: 'Hidra da Vergonha', icon: '🐍' },
-  { name: 'Kraken da Desculpa', icon: '🐙' },
-  { name: 'Ogro do Sofá', icon: '👹' },
-  { name: 'Fantasma do "E se..."', icon: '👻' },
-]
 
 export interface WeeklyBoss {
   name: string
-  icon: string
+  /** Pecas do boneco 3D: sorteadas pela semana. */
+  design: BossDesign
   hp: number
   damage: number
   /** Vida restante, 0 a 1. */
@@ -246,9 +240,8 @@ export function weeklyBoss(input: MissionInput, now = new Date()): WeeklyBoss {
     else outros++
   }
 
-  // Semana do ano escolhe o chefao: muda toda segunda, igual para todo mundo.
-  const week = Math.floor((start.getTime() - new Date(start.getFullYear(), 0, 1).getTime()) / 6048e5)
-  const boss = BOSSES[week % BOSSES.length]
+  // A semana escolhe o chefao: muda toda segunda, igual em qualquer aparelho.
+  const design = generateBoss(weekSeed(now))
   const life = Math.max(0, 1 - damage / hp)
-  return { ...boss, hp, damage: Math.min(damage, hp), life, defeated: life === 0, hits: { treinos, naos, outros } }
+  return { name: design.name, design, hp, damage: Math.min(damage, hp), life, defeated: life === 0, hits: { treinos, naos, outros } }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -13,6 +13,9 @@ import { useApp } from '../lib/store'
 import { vibrate } from '../lib/timer'
 import { useGame } from '../lib/useGame'
 import { startWorkout } from '../lib/workout'
+
+// three.js pesa: o chefao 3D so baixa quando a tela Hoje aparece.
+const Boss3D = lazy(() => import('../components/Boss3D'))
 
 /** Nivel ja comemorado: guardado por aparelho, so para nao repetir a festa. */
 const LEVEL_KEY = 'game:lastLevel'
@@ -128,6 +131,11 @@ export default function Today() {
         </button>
       </header>
 
+      {/* O chefao abre a tela: e a primeira coisa que voce ve ao entrar. */}
+      <div className="px-4 pb-3">
+        <BossCard boss={boss} />
+      </div>
+
       <div className="px-4">
         <LevelCard xp={xp} />
 
@@ -182,13 +190,6 @@ export default function Today() {
         </div>
 
         <Chest open={allDone} streak={perfect.streak} />
-      </section>
-
-      <section className="px-4 pt-5">
-        <h2 className="mb-2.5 text-sm font-black uppercase tracking-widest text-ink-300">
-          Chefão da semana
-        </h2>
-        <BossCard boss={boss} />
       </section>
 
       {threeSeconds && <ThreeSeconds onClose={() => setThreeSeconds(false)} />}
@@ -270,47 +271,57 @@ function Chest({ open, streak }: { open: boolean; streak: number }) {
 function BossCard({ boss }: { boss: WeeklyBoss }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-3xl border-2 p-4 ${
-        boss.defeated ? 'border-go-500/60 bg-go-500/10' : 'border-red-500/40 bg-red-950/30'
+      className={`relative overflow-hidden rounded-3xl border-2 ${
+        boss.defeated ? 'border-go-500/60 bg-go-500/10' : 'border-red-500/40'
       }`}
+      style={
+        boss.defeated
+          ? undefined
+          : {
+              background:
+                'radial-gradient(80% 70% at 50% 35%, rgba(239,68,68,0.22), transparent 70%), #12090d',
+            }
+      }
     >
-      <div className="flex items-center gap-3.5">
-        <span
-          className={`text-5xl ${boss.defeated ? 'rotate-180 opacity-60 grayscale' : 'animate-float'}`}
-          aria-hidden="true"
-        >
-          {boss.icon}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-black uppercase tracking-widest text-ink-400">
-            {boss.defeated ? 'Derrotado!' : 'Chefão'}
-          </p>
-          <p className="truncate text-lg font-black">{boss.name}</p>
-          <div
-            className="mt-1.5 h-3 overflow-hidden rounded-full bg-ink-950/70 ring-1 ring-red-900"
-            role="progressbar"
-            aria-label="Vida do chefão"
-            aria-valuemin={0}
-            aria-valuemax={boss.hp}
-            aria-valuenow={boss.hp - boss.damage}
-          >
-            <div
-              className="hp-fill h-full rounded-full transition-[width] duration-700"
-              style={{ width: `${boss.life * 100}%` }}
-            />
+      <Suspense
+        fallback={
+          <div className="flex h-[230px] items-center justify-center">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-ink-700 border-t-red-400" />
           </div>
-          <p className="tnum mt-1 text-[11px] text-ink-300">
-            {boss.defeated
-              ? 'Semana vencida. Na segunda chega outro.'
-              : `${boss.hp - boss.damage} / ${boss.hp} de vida`}
-          </p>
+        }
+      >
+        <Boss3D design={boss.design} life={boss.life} defeated={boss.defeated} />
+      </Suspense>
+
+      <div className="px-4 pb-4">
+        <p className="text-center text-[10px] font-black uppercase tracking-widest text-ink-400">
+          {boss.defeated ? 'Derrotado!' : 'Chefão da semana · até domingo'}
+        </p>
+        <p className="truncate text-center text-xl font-black">{boss.name}</p>
+        <div
+          className="mt-2 h-3.5 overflow-hidden rounded-full bg-ink-950/70 ring-1 ring-red-900"
+          role="progressbar"
+          aria-label="Vida do chefão"
+          aria-valuemin={0}
+          aria-valuemax={boss.hp}
+          aria-valuenow={boss.hp - boss.damage}
+        >
+          <div
+            className="hp-fill h-full rounded-full transition-[width] duration-700"
+            style={{ width: `${boss.life * 100}%` }}
+          />
         </div>
+        <p className="tnum mt-1 text-center text-[11px] text-ink-300">
+          {boss.defeated
+            ? 'Semana vencida. Na segunda chega outro.'
+            : `${boss.hp - boss.damage} / ${boss.hp} de vida · toque nele`}
+        </p>
+        <p className="tnum mt-3 flex justify-around border-t border-ink-700/60 pt-2.5 text-[11px] text-ink-300">
+          <span>🏋️ {boss.hits.treinos} treinos</span>
+          <span>🦁 {boss.hits.naos} nãos</span>
+          <span>✨ {boss.hits.outros} além do não</span>
+        </p>
       </div>
-      <p className="tnum mt-3 flex justify-around border-t border-ink-700/60 pt-2.5 text-[11px] text-ink-300">
-        <span>🏋️ {boss.hits.treinos} treinos</span>
-        <span>🦁 {boss.hits.naos} nãos</span>
-        <span>✨ {boss.hits.outros} além do não</span>
-      </p>
     </div>
   )
 }
