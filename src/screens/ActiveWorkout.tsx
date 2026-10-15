@@ -50,7 +50,7 @@ const WEIGHT_BIG_STEP = 5
 
 export default function ActiveWorkout() {
   const navigate = useNavigate()
-  const { active, exerciseById, logsByExercise, setActive, reload } = useApp()
+  const { active, exerciseById, logsByExercise, sessions, setActive, reload } = useApp()
 
   const [weight, setWeight] = useState(0)
   const [reps, setReps] = useState(0)
@@ -112,6 +112,19 @@ export default function ActiveWorkout() {
     () => (item ? (logsByExercise.get(item.exercise_id) ?? []) : []),
     [item?.exercise_id, logsByExercise],
   )
+
+  /**
+   * As series do exercicio so nas sessoes deste mesmo treino: a tonelagem do
+   * supino no treino A nao se compara com a do treino B, que tem outro volume.
+   */
+  const routineLogs = useMemo(() => {
+    if (!active) return []
+    const sameRoutine = new Set(
+      sessions.filter((s) => s.routine_id === active.routine_id).map((s) => s.id),
+    )
+    sameRoutine.add(active.session_id)
+    return exerciseLogs.filter((log) => sameRoutine.has(log.session_id))
+  }, [exerciseLogs, sessions, active?.routine_id, active?.session_id])
 
   /** O que ja foi feito hoje neste exercicio, para comparar ao vivo. */
   const todaySets = useMemo(() => {
@@ -455,7 +468,7 @@ export default function ActiveWorkout() {
             </div>
           }
         >
-          <ExerciseHistory logs={exerciseLogs} />
+          <ExerciseHistory logs={exerciseLogs} routineLogs={routineLogs} />
         </Suspense>
 
         {/* Respiro para o ultimo grafico nao encostar na barra de acao. */}

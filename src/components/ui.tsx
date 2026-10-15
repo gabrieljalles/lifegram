@@ -581,20 +581,21 @@ const PROGRESSION_META: Record<
   { icon: string; title: string; border: string; bg: string; text: string; button: string }
 > = {
   increase: {
-    icon: '🔺',
+    // Glifo de texto, nao emoji: o emoji 🔺 e sempre vermelho e herda nada do card.
+    icon: '▲',
     title: 'Hora de subir a carga',
-    border: 'border-pr-500/50',
-    bg: 'bg-pr-500/10',
-    text: 'text-pr-400',
-    button: 'bg-pr-500 text-ink-950 active:bg-pr-400',
+    border: 'border-go-500/50',
+    bg: 'bg-go-500/10',
+    text: 'text-go-400',
+    button: 'bg-go-500 text-ink-950 active:bg-go-400',
   },
   decrease: {
-    icon: '🔻',
+    icon: '▼',
     title: 'Considere baixar a carga',
-    border: 'border-fire-500/50',
-    bg: 'bg-fire-500/10',
-    text: 'text-fire-400',
-    button: 'bg-fire-500 text-ink-950 active:bg-fire-400',
+    border: 'border-red-500/50',
+    bg: 'bg-red-500/10',
+    text: 'text-red-400',
+    button: 'bg-red-500 text-ink-950 active:bg-red-400',
   },
   deload: {
     icon: '🧊',

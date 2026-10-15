@@ -13,7 +13,7 @@ import {
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { SERIES } from './charts'
-import { exerciseSessionPoints, formatVolume, formatWeight } from '../lib/stats'
+import { exerciseSessionPoints, formatVolume } from '../lib/stats'
 import type { SetLog } from '../lib/types'
 
 /**
@@ -38,13 +38,22 @@ interface Point {
   valor: number
 }
 
-export default function ExerciseHistory({ logs }: { logs: SetLog[] }) {
+export default function ExerciseHistory({
+  logs,
+  routineLogs,
+}: {
+  logs: SetLog[]
+  /** So as series deste exercicio feitas neste mesmo treino. */
+  routineLogs: SetLog[]
+}) {
   const points = useMemo(() => exerciseSessionPoints(logs), [logs])
+  const routinePoints = useMemo(() => exerciseSessionPoints(routineLogs), [routineLogs])
 
-  const carga: Point[] = points.map((p) => ({
+  // Tonelagem: soma de reps x peso de todas as series do exercicio no dia.
+  const tonelagem: Point[] = routinePoints.map((p) => ({
     label: format(p.date, 'dd/MM'),
     date: p.date,
-    valor: p.topWeight,
+    valor: p.volume,
   }))
 
   const volume: Point[] = points.map((p) => ({
@@ -68,13 +77,22 @@ export default function ExerciseHistory({ logs }: { logs: SetLog[] }) {
 
   return (
     <div className="mt-4 flex w-full max-w-sm flex-col gap-3">
-      <HistoryChart
-        title="Carga"
-        subtitle="maior peso de cada treino"
-        data={carga}
-        color={SERIES.primary}
-        format={(value) => `${formatWeight(value)} kg`}
-      />
+      {tonelagem.length >= 2 ? (
+        <HistoryChart
+          title="Tonelagem"
+          subtitle="reps × peso de todas as séries, só neste treino"
+          data={tonelagem}
+          color={SERIES.primary}
+          format={(value) => formatVolume(value)}
+        />
+      ) : (
+        <div className="rounded-2xl border border-ink-700 bg-ink-850 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Tonelagem</p>
+          <p className="mt-1 text-[10px] text-ink-400">
+            Com a segunda sessão deste treino, a tonelagem aparece aqui.
+          </p>
+        </div>
+      )}
       <HistoryChart
         title="Melhor série"
         subtitle="kg × reps da melhor série do dia"
