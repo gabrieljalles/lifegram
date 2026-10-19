@@ -10,9 +10,12 @@ import { toggleActivity } from '../../lib/activityActions'
 import {
   connectGcal,
   disconnectGcal,
+  gcalClientIdFromApp,
   gcalLinked,
   gcalTokenValid,
   isGcalConfigured,
+  isValidClientId,
+  setGcalClientId,
   syncGcal,
 } from '../../lib/gcal'
 import { useApp } from '../../lib/store'
@@ -242,15 +245,17 @@ function GoogleCard({ activities, onChange }: { activities: Activity[]; onChange
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [linked, setLinked] = useState(gcalLinked)
+  const [configured, setConfigured] = useState(isGcalConfigured)
 
-  if (!isGcalConfigured) {
+  if (!configured) {
     return (
       <Section title="Google Agenda">
-        <Card className="p-4 text-sm leading-relaxed text-ink-300">
-          Abra uma atividade e toque em <b>Adicionar ao Google Agenda</b> para salvar o evento (com
-          repetição) na sua agenda. A sincronização automática liga quando o app tiver um{' '}
-          <code className="text-xs">VITE_GOOGLE_CLIENT_ID</code> configurado.
-        </Card>
+        <ClientIdForm
+          onSaved={() => {
+            setConfigured(true)
+            setLinked(false)
+          }}
+        />
       </Section>
     )
   }
@@ -282,6 +287,13 @@ function GoogleCard({ activities, onChange }: { activities: Activity[]; onChange
     setMessage('Desconectado. Os eventos já criados continuam no Google.')
   }
 
+  const forgetKey = async () => {
+    await setGcalClientId(null)
+    setLinked(false)
+    setConfigured(isGcalConfigured())
+    setMessage(null)
+  }
+
   return (
     <Section title="Google Agenda">
       <Card className="p-4">
@@ -307,7 +319,80 @@ function GoogleCard({ activities, onChange }: { activities: Activity[]; onChange
           )}
         </div>
         {message && <p className="mt-2 text-xs text-ink-300">{message}</p>}
+        {gcalClientIdFromApp() && (
+          <button
+            type="button"
+            onClick={() => void forgetKey()}
+            disabled={busy}
+            className="mt-3 text-xs font-semibold text-ink-400 underline underline-offset-2"
+          >
+            Trocar Client ID
+          </button>
+        )}
       </Card>
     </Section>
+  )
+}
+
+/**
+ * Sem Client ID ainda: o proprio usuario cola o dele. Cada um usa o seu
+ * projeto do Google Cloud, e a chave fica so neste aparelho.
+ */
+function ClientIdForm({ onSaved }: { onSaved: () => void }) {
+  const [value, setValue] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const save = async () => {
+    const id = value.trim()
+    if (!isValidClientId(id)) {
+      setError('Não parece um Client ID: ele termina em .apps.googleusercontent.com')
+      return
+    }
+    try {
+      await setGcalClientId(id)
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não deu para salvar.')
+    }
+  }
+
+  return (
+    <Card className="p-4 text-sm leading-relaxed text-ink-300">
+      <p>
+        Cole o <b>Client ID</b> do Google para cada atividade virar um evento na sua agenda, com
+        repetição e aviso. Sem ele, abra uma atividade e toque em <b>Adicionar ao Google Agenda</b>.
+      </p>
+      <details className="mt-2 text-xs text-ink-400">
+        <summary className="cursor-pointer font-semibold text-ink-300">Como conseguir</summary>
+        <ol className="mt-1.5 list-decimal space-y-1 pl-4">
+          <li>
+            Em console.cloud.google.com, crie um projeto e ative a <b>Google Calendar API</b>.
+          </li>
+          <li>
+            Credenciais › Criar credenciais › <b>ID do cliente OAuth</b> › Aplicativo da Web.
+          </li>
+          <li>
+            Em “Origens JavaScript autorizadas”, coloque <code>{window.location.origin}</code>.
+          </li>
+          <li>Na tela de consentimento, adicione seu e-mail como usuário de teste.</li>
+          <li>Copie o ID do cliente e cole aqui.</li>
+        </ol>
+      </details>
+      <input
+        value={value}
+        onChange={(event) => {
+          setValue(event.target.value)
+          setError(null)
+        }}
+        placeholder="123456-abc.apps.googleusercontent.com"
+        autoComplete="off"
+        spellCheck={false}
+        className="mt-3 w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-3 text-sm outline-none focus:border-brand-500"
+      />
+      {error && <p className="mt-1.5 text-xs text-fire-400">{error}</p>}
+      <Button className="mt-3 w-full" onClick={() => void save()} disabled={!value.trim()}>
+        Salvar e ativar
+      </Button>
+    </Card>
   )
 }

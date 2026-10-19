@@ -11,17 +11,57 @@ import { nowISO } from './types'
  * celular avisa na hora marcada sem o app precisar de servidor de push.
  *
  * Dois caminhos:
- * - Com VITE_GOOGLE_CLIENT_ID: login Google no navegador (Google Identity
- *   Services) e cada atividade vira um evento, atualizado a cada mudanca.
+ * - Com um Client ID (digitado no app ou VITE_GOOGLE_CLIENT_ID): login Google
+ *   no navegador (Google Identity Services) e cada atividade vira um evento,
+ *   atualizado a cada mudanca.
  * - Sem configuracao: o link "adicionar ao Google Agenda" de cada atividade,
  *   que abre o evento ja preenchido para salvar a mao.
  */
 
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
+const ENV_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
 const SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 const API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
 
-export const isGcalConfigured = Boolean(CLIENT_ID)
+/**
+ * Client ID digitado no proprio app. Nao e segredo — o Google o expoe em toda
+ * pagina que faz login —, entao fica no aparelho e manda sobre o da build.
+ */
+const CLIENT_ID_KEY = 'gcal:client_id'
+
+export function gcalClientId(): string | null {
+  try {
+    const stored = localStorage.getItem(CLIENT_ID_KEY)
+    if (stored) return stored
+  } catch {
+    // Sem storage: sobra o da build.
+  }
+  return ENV_CLIENT_ID || null
+}
+
+/** O Client ID OAuth de aplicativo web sempre termina assim. */
+export const isValidClientId = (id: string) => /^[\w-]+\.apps\.googleusercontent\.com$/.test(id)
+
+/** Troca (ou apaga, com null) a chave: a sessao da chave anterior cai junto. */
+export async function setGcalClientId(id: string | null) {
+  await disconnectGcal()
+  try {
+    if (id) localStorage.setItem(CLIENT_ID_KEY, id.trim())
+    else localStorage.removeItem(CLIENT_ID_KEY)
+  } catch {
+    throw new Error('Este navegador não deixa salvar a chave.')
+  }
+}
+
+/** A chave veio do app (e pode ser trocada la) ou da build. */
+export function gcalClientIdFromApp(): boolean {
+  try {
+    return localStorage.getItem(CLIENT_ID_KEY) !== null
+  } catch {
+    return false
+  }
+}
+
+export const isGcalConfigured = (): boolean => gcalClientId() !== null
 
 /** Token guardado por aparelho, com validade (o do Google dura ~1 h). */
 const TOKEN_KEY = 'gcal:token'
@@ -185,11 +225,12 @@ export const gcalTokenValid = (): boolean => readToken() !== null
  * navegador bloqueia a janela de login.
  */
 export async function connectGcal(): Promise<void> {
-  if (!CLIENT_ID) throw new Error('Google Agenda não configurado (VITE_GOOGLE_CLIENT_ID).')
+  const clientId = gcalClientId()
+  if (!clientId) throw new Error('Google Agenda não configurado: falta o Client ID.')
   const google = await loadGis()
   const token = await new Promise<StoredToken>((resolve, reject) => {
     const client = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
+      client_id: clientId,
       scope: SCOPE,
       callback: (response) => {
         if (!response.access_token) return reject(new Error(response.error ?? 'Login cancelado.'))
