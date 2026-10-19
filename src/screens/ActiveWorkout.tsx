@@ -46,6 +46,8 @@ const ExerciseHistory = lazy(() => import('../components/ExerciseHistory'))
 
 /** Ajuste fino no toque principal; o atalho grande cobre a troca de anilha. */
 const WEIGHT_STEP = 1
+/** Passo do ajuste de alvo nos exercicios de tempo. */
+const TIME_STEP = 5
 const WEIGHT_BIG_STEP = 5
 
 export default function ActiveWorkout() {
@@ -54,13 +56,21 @@ export default function ActiveWorkout() {
 
   const [weight, setWeight] = useState(0)
   const [reps, setReps] = useState(0)
-  /** Instante em que o cronometro da serie comecou; null = parado. */
-  const [timerStart, setTimerStart] = useState<string | null>(null)
+  /**
+   * Cronometro da serie: o instante de inicio, preso a serie em que foi
+   * disparado. Serie nova tem outra chave, entao o cronometro volta ao alvo
+   * sozinho — sem depender de um efeito zerar o estado a tempo.
+   */
+  const [timer, setTimer] = useState<{ key: string; at: string } | null>(null)
+  /** Alvo em segundos ajustado na tela; null = o planejado. */
+  const [targetOverride, setTargetOverride] = useState<number | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [celebration, setCelebration] = useState<{ label: string; detail: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
   const item = active?.items[active.cursor] ?? null
+  const setKey = active ? `${active.session_id}:${active.cursor}:${active.set_number}` : ''
+  const timerStart = timer?.key === setKey ? timer.at : null
   const exercise = item ? exerciseById.get(item.exercise_id) : undefined
   const photo = usePhotoURL(exercise)
 
@@ -75,8 +85,7 @@ export default function ActiveWorkout() {
     if (!item) return
     setWeight(item.target_weight)
     setReps(item.target_reps)
-    // Serie nova comeca com o cronometro zerado, nunca herdando a anterior.
-    setTimerStart(null)
+    setTargetOverride(null)
   }, [item?.exercise_id, active?.set_number, active?.cursor])
 
   /** Todo o historico do exercicio antes desta sessao — base da comparacao e da recomendacao. */
@@ -190,15 +199,16 @@ export default function ActiveWorkout() {
         weight,
         reps: timed ? 0 : reps,
         duration_seconds: seconds,
+        target_seconds: timed && targetOverride !== null ? targetOverride : undefined,
       })
       // A carga que voce realmente usou vira o alvo da proxima vez.
-      // Em exercicio de tempo guarda so a carga: o alvo de segundos e o plano
-      // do treino, nao o que saiu numa serie ruim.
+      // Em exercicio de tempo o alvo so muda quando voce o ajusta na tela —
+      // nunca pelo que saiu numa serie ruim.
       await rememberLoad(
         active.routine_id,
         item.exercise_id,
         weight,
-        timed ? item.target_reps : reps,
+        timed ? (targetOverride ?? item.target_reps) : reps,
       )
 
       if (result.isPR) {
@@ -244,13 +254,16 @@ export default function ActiveWorkout() {
    * correcao — sem ele, o cronometro abriria em 0:00 e ja daria a serie por
    * encerrada.
    */
-  const targetSeconds = timed
+  const plannedSeconds = timed
     ? item.segments.length > 0
       ? segmentsDuration(item.segments)
       : item.target_reps > 0
         ? item.target_reps
         : (exercise.rep_ceiling ?? DEFAULT_REP_CEILING)
     : 0
+  // Composto: o alvo e a soma dos blocos, ajustado no editor do exercicio.
+  const targetSeconds =
+    timed && item.segments.length === 0 && targetOverride !== null ? targetOverride : plannedSeconds
 
   /** O exercicio da vez e um que voltou da fila de adiados. */
   const isPostponed = active.postponed.includes(item.exercise_id)
@@ -410,8 +423,13 @@ export default function ActiveWorkout() {
               target={targetSeconds}
               segments={item.segments}
               running={timerStart !== null}
-              onStart={() => setTimerStart(new Date().toISOString())}
-              onReset={() => setTimerStart(null)}
+              onStart={() => setTimer({ key: setKey, at: new Date().toISOString() })}
+              onReset={() => setTimer(null)}
+              onAdjust={
+                item.segments.length > 0
+                  ? undefined
+                  : (delta) => setTargetOverride(Math.max(TIME_STEP, targetSeconds + delta))
+              }
             />
           ) : (
             <Stepper
@@ -785,6 +803,7 @@ function TimedSet({
   running,
   onStart,
   onReset,
+  onAdjust,
 }: {
   elapsed: number
   target: number
@@ -792,6 +811,8 @@ function TimedSet({
   running: boolean
   onStart: () => void
   onReset: () => void
+  /** Ajusta o alvo da serie; ausente no composto, cujo alvo e a soma dos blocos. */
+  onAdjust?: (delta: number) => void
 }) {
   const done = running && elapsed >= target
 
@@ -839,7 +860,8 @@ function TimedSet({
           done ? 'text-go-400' : 'text-ink-50'
         }`}
       >
-        {formatClock(current ? current.remaining : remaining)}
+        {/* Passou do alvo: conta o extra, que e o seu avanco. */}
+        {current ? formatClock(current.remaining) : done ? `+${formatClock(elapsed - target)}` : formatClock(remaining)}
       </p>
 
       <p className="mt-1 text-center text-[11px] text-ink-400">
@@ -851,6 +873,27 @@ function TimedSet({
               : `alvo ${formatClock(target)}`
             : `alvo ${formatClock(target)}`}
       </p>
+
+      {onAdjust && !running && (
+        <div className="mt-2 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => onAdjust(-TIME_STEP)}
+            aria-label={`Diminuir alvo em ${TIME_STEP} segundos`}
+            className="tnum rounded-lg bg-ink-800 px-2.5 py-1 text-[11px] font-bold text-ink-300 active:bg-ink-700"
+          >
+            −{TIME_STEP}s
+          </button>
+          <button
+            type="button"
+            onClick={() => onAdjust(TIME_STEP)}
+            aria-label={`Aumentar alvo em ${TIME_STEP} segundos`}
+            className="tnum rounded-lg bg-ink-800 px-2.5 py-1 text-[11px] font-bold text-ink-300 active:bg-ink-700"
+          >
+            +{TIME_STEP}s
+          </button>
+        </div>
+      )}
 
       <Button
         className="mt-2 w-full"

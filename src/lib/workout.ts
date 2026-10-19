@@ -109,14 +109,20 @@ export interface CompletedSet {
  */
 export async function completeSet(
   active: ActiveWorkout,
-  input: { weight: number; reps: number; duration_seconds?: number | null },
+  input: {
+    weight: number
+    reps: number
+    duration_seconds?: number | null
+    /** Alvo de tempo ajustado na tela: vale para as proximas series. */
+    target_seconds?: number
+  },
 ): Promise<CompletedSet> {
   const item = active.items[active.cursor]
   const completed_at = nowISO()
 
   const duration_seconds = input.duration_seconds ?? null
   const history = await setLogsOfExercise(item.exercise_id)
-  const pr = checkPR({ ...input, duration_seconds }, history)
+  const pr = checkPR({ weight: input.weight, reps: input.reps, duration_seconds }, history)
 
   const log: SetLog = {
     id: newId(),
@@ -155,7 +161,8 @@ export async function completeSet(
           // Em exercicio cronometrado o alvo e o PLANO da serie e nao muda com
           // o que saiu: segurar 20 s de uma prancha de 30 nao pode rebaixar a
           // proxima serie para 20 — o alvo so muda quando voce decide.
-          target_reps: entry.measure === 'tempo' ? entry.target_reps : input.reps,
+          target_reps:
+            entry.measure === 'tempo' ? (input.target_seconds ?? entry.target_reps) : input.reps,
         }
       : entry,
   )
