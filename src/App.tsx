@@ -22,6 +22,8 @@ const CourageAttemptForm = lazy(() => import('./screens/courage/CourageAttemptFo
 const CourageDashboard = lazy(() => import('./screens/courage/CourageDashboard'))
 const CourageTrack = lazy(() => import('./screens/courage/CourageTrack'))
 const CourageCalibrate = lazy(() => import('./screens/courage/CourageCalibrate'))
+const Agenda = lazy(() => import('./screens/agenda/Agenda'))
+const ActivityForm = lazy(() => import('./screens/agenda/ActivityForm'))
 const ExerciseDetail = lazy(() => import('./screens/ExerciseDetail'))
 
 /** A tela de treino e imersiva: sem barra de navegacao competindo com o foco. */
@@ -36,7 +38,7 @@ interface NavItem {
 }
 
 /**
- * Barra fixa: os mesmos quatro destinos em qualquer tela. Antes ela mudava
+ * Barra fixa: os mesmos destinos em qualquer tela. Antes ela mudava
  * por area e a pessoa nunca sabia onde estava.
  */
 const NAV: NavItem[] = [
@@ -51,6 +53,12 @@ const NAV: NavItem[] = [
     label: 'Treino',
     icon: 'M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10',
     match: (p) => ['/academia', '/treinos', '/exercicio'].some((x) => p.startsWith(x)),
+  },
+  {
+    to: '/agenda',
+    label: 'Agenda',
+    icon: 'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4',
+    match: (p) => p.startsWith('/agenda'),
   },
   {
     to: '/coragem',
@@ -139,6 +147,9 @@ export default function App() {
             <Route path="/" element={<Today />} />
             <Route path="/academia" element={<Home />} />
             <Route path="/desempenho" element={<Performance />} />
+            <Route path="/agenda" element={<Agenda />} />
+            <Route path="/agenda/nova" element={<ActivityForm />} />
+            <Route path="/agenda/:activityId" element={<ActivityForm key="edit" />} />
             <Route path="/coragem" element={<CourageHome />} />
             <Route path="/coragem/painel" element={<CourageDashboard />} />
             <Route path="/coragem/mapa" element={<CourageTrack />} />

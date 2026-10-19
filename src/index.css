@@ -159,8 +159,16 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 .animate-count { animation: count-pop 1s ease-out both; }
 
+/* "+20 XP" que sobe e some ao marcar uma atividade. */
+@keyframes xp-float {
+  0% { transform: translateY(4px) scale(0.8); opacity: 0; }
+  20% { transform: translateY(-6px) scale(1.1); opacity: 1; }
+  100% { transform: translateY(-34px) scale(1); opacity: 0; }
+}
+.animate-xp { animation: xp-float 1.1s ease-out both; }
+
 @media (prefers-reduced-motion: reduce) {
-  .xp-fill, .animate-wobble, .animate-float, .animate-count { animation: none; }
+  .xp-fill, .animate-wobble, .animate-float, .animate-count, .animate-xp { animation: none; }
   .animate-pop-in, .animate-rise, .animate-pulse-ring, .animate-star, .animate-glow {
     animation: none;
   }

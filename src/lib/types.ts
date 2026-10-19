@@ -416,6 +416,49 @@ export interface CourageScoreChange {
   updated_at: string
 }
 
+/* ---------------------------------------------------------- atividades */
+
+/**
+ * Recorrente repete nos dias da semana marcados ("ler uma pagina, seg a sex");
+ * esporadica acontece uma vez, numa data ("dentista dia 24").
+ */
+export type ActivityKind = 'recorrente' | 'esporadica'
+
+export interface Activity {
+  id: ID
+  user_id: string | null
+  title: string
+  /** Emoji do card: identidade de relance na lista. */
+  icon: string
+  kind: ActivityKind
+  /** Dias em que a recorrente acontece. Vazio na esporadica. */
+  days: Weekday[]
+  /** Data (YYYY-MM-DD) da esporadica. null na recorrente. */
+  date: string | null
+  /** Horario (HH:mm). null = qualquer hora do dia. */
+  time: string | null
+  /** Duracao em minutos, usada no evento do Google Agenda. */
+  duration_minutes: number
+  /** Primeiro dia valido da recorrente (YYYY-MM-DD): o passado nao cobra. */
+  starts_on: string
+  /** Evento correspondente no Google Agenda, quando ja sincronizado. */
+  gcal_event_id: string | null
+  archived: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** Uma atividade cumprida num dia. Desmarcar apaga a linha. */
+export interface ActivityLog {
+  id: ID
+  user_id: string | null
+  activity_id: ID
+  /** Dia da ocorrencia (YYYY-MM-DD), nao o instante do toque. */
+  day: string
+  done_at: string
+  updated_at: string
+}
+
 export type SyncTable =
   | 'exercises'
   | 'routines'
@@ -428,6 +471,8 @@ export type SyncTable =
   | 'courage_score_changes'
   | 'courage_rejections'
   | 'courage_track_steps'
+  | 'activities'
+  | 'activity_logs'
 
 export interface OutboxEntry {
   seq?: number

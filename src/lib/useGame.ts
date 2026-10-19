@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { activityXP } from './activities'
 import { PERFECT_DAY_XP, dailyMissions, perfectDays, weeklyBoss } from './missions'
 import { useApp } from './store'
 import { computeXP } from './xp'
@@ -16,6 +17,8 @@ export function useGame() {
     courageRejections,
     courageTrackSteps,
     courageAttempts,
+    activities,
+    activityLogs,
   } = useApp()
 
   return useMemo(() => {
@@ -34,8 +37,19 @@ export function useGame() {
       trackSteps: courageTrackSteps,
       attempts: courageAttempts,
       bonus: perfect.total * PERFECT_DAY_XP,
+      agenda: activityXP(activities, activityLogs),
     })
     const missions = dailyMissions(input)
     return { xp, perfect, missions, boss: weeklyBoss(input) }
-  }, [routines, sessions, setLogs, settings, courageRejections, courageTrackSteps, courageAttempts])
+  }, [
+    routines,
+    sessions,
+    setLogs,
+    settings,
+    courageRejections,
+    courageTrackSteps,
+    courageAttempts,
+    activities,
+    activityLogs,
+  ])
 }

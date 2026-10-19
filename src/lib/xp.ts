@@ -65,11 +65,14 @@ export interface XPSources {
   attempts: CourageAttempt[]
   /** XP extra que nao vem de registro: bonus de dia perfeito. */
   bonus?: number
+  /** XP da agenda de atividades, ja somado (ver activityXP). */
+  agenda?: { total: number; today: number }
 }
 
 export interface XPBreakdown {
   treino: number
   coragem: number
+  agenda: number
 }
 
 export interface XPState {
@@ -116,7 +119,10 @@ export function computeXP(src: XPSources, now = new Date()): XPState {
     if (attempt.completed_at && isToday(attempt.completed_at)) today += XP_RULES.tentativa
   }
 
-  const total = treino + coragem + (src.bonus ?? 0)
+  const agenda = src.agenda?.total ?? 0
+  today += src.agenda?.today ?? 0
+
+  const total = treino + coragem + agenda + (src.bonus ?? 0)
   const level = levelOf(total)
   const from = xpToReach(level)
   const span = xpToReach(level + 1) - from
@@ -128,6 +134,6 @@ export function computeXP(src: XPSources, now = new Date()): XPState {
     into: total - from,
     span,
     ratio: span > 0 ? (total - from) / span : 0,
-    breakdown: { treino, coragem },
+    breakdown: { treino, coragem, agenda },
   }
 }

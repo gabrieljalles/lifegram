@@ -1,6 +1,8 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type {
   ActiveWorkout,
+  Activity,
+  ActivityLog,
   AppSettings,
   BodyWeightLog,
   CourageAttempt,
@@ -48,6 +50,8 @@ interface WorkoutDB extends DBSchema {
   courage_score_changes: { key: ID; value: CourageScoreChange; indexes: { by_goal: ID } }
   courage_rejections: { key: ID; value: CourageRejection; indexes: { by_happened: string } }
   courage_track_steps: { key: ID; value: CourageTrackStep; indexes: { by_step: string } }
+  activities: { key: ID; value: Activity }
+  activity_logs: { key: ID; value: ActivityLog; indexes: { by_activity: ID; by_day: string } }
   /** Fila de sincronizacao: o que ainda nao subiu para o Supabase. */
   outbox: { key: number; value: OutboxEntry }
   /** Fotos como blob, garantindo imagem no exercicio mesmo offline. */
@@ -57,7 +61,7 @@ interface WorkoutDB extends DBSchema {
 }
 
 const DB_NAME = 'workout'
-const DB_VERSION = 5
+const DB_VERSION = 6
 
 let dbPromise: Promise<IDBPDatabase<WorkoutDB>> | null = null
 
@@ -111,6 +115,13 @@ export function db(): Promise<IDBPDatabase<WorkoutDB>> {
         if (oldVersion < 5) {
           const trilha = database.createObjectStore('courage_track_steps', { keyPath: 'id' })
           trilha.createIndex('by_step', 'step_id')
+        }
+
+        if (oldVersion < 6) {
+          database.createObjectStore('activities', { keyPath: 'id' })
+          const logs = database.createObjectStore('activity_logs', { keyPath: 'id' })
+          logs.createIndex('by_activity', 'activity_id')
+          logs.createIndex('by_day', 'day')
         }
       },
     })
@@ -405,6 +416,35 @@ export async function allCourageTrackSteps(): Promise<CourageTrackStep[]> {
   return (await db()).getAll('courage_track_steps').then((rows) => rows.map(withRatings))
 }
 
+/* ------------------------------------------------------------ atividades */
+
+export async function putActivity(activity: Activity, { sync = true } = {}) {
+  const database = await db()
+  await database.put('activities', activity)
+  if (sync) await enqueue('activities', activity.id)
+}
+
+export async function allActivities(includeArchived = false): Promise<Activity[]> {
+  const rows = await (await db()).getAll('activities')
+  return rows.filter((a) => includeArchived || !a.archived)
+}
+
+export async function putActivityLog(log: ActivityLog, { sync = true } = {}) {
+  const database = await db()
+  await database.put('activity_logs', log)
+  if (sync) await enqueue('activity_logs', log.id)
+}
+
+export async function deleteActivityLog(id: ID) {
+  const database = await db()
+  await database.delete('activity_logs', id)
+  await enqueue('activity_logs', id, 'delete')
+}
+
+export async function allActivityLogs(): Promise<ActivityLog[]> {
+  return (await db()).getAll('activity_logs')
+}
+
 /* ----------------------------------------------------------- migracoes */
 
 const CEILING_MIGRATION_KEY = 'migrated:rep_ceiling_12'
@@ -469,6 +509,8 @@ export interface Backup {
   courage_score_changes?: CourageScoreChange[]
   courage_rejections?: CourageRejection[]
   courage_track_steps?: CourageTrackStep[]
+  activities?: Activity[]
+  activity_logs?: ActivityLog[]
 }
 
 export async function exportBackup(): Promise<Backup> {
@@ -486,6 +528,8 @@ export async function exportBackup(): Promise<Backup> {
     courage_score_changes,
     courage_rejections,
     courage_track_steps,
+    activities,
+    activity_logs,
   ] = await Promise.all([
     database.getAll('exercises'),
     database.getAll('routines'),
@@ -498,6 +542,8 @@ export async function exportBackup(): Promise<Backup> {
     database.getAll('courage_score_changes'),
     database.getAll('courage_rejections'),
     database.getAll('courage_track_steps'),
+    database.getAll('activities'),
+    database.getAll('activity_logs'),
   ])
   return {
     version: 2,
@@ -514,6 +560,8 @@ export async function exportBackup(): Promise<Backup> {
     courage_score_changes,
     courage_rejections,
     courage_track_steps,
+    activities,
+    activity_logs,
   }
 }
 
@@ -543,6 +591,8 @@ export async function importBackup(backup: Backup): Promise<number> {
     'courage_score_changes',
     'courage_rejections',
     'courage_track_steps',
+    'activities',
+    'activity_logs',
   ]
   for (const table of tables) {
     const rows = (backup[table] ?? []) as Array<{ id: ID; updated_at: string }>

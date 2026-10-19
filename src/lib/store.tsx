@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  allActivities,
+  allActivityLogs,
   allBodyWeightLogs,
   allCourageAttempts,
   allCourageGoals,
@@ -30,6 +32,8 @@ import { isSupabaseConfigured, supabase } from './supabase'
 import { startAutoSync, sync, type SyncResult } from './sync'
 import type {
   ActiveWorkout,
+  Activity,
+  ActivityLog,
   AppSettings,
   CourageAttempt,
   CourageGoal,
@@ -61,6 +65,8 @@ interface AppState {
   courageScoreChanges: CourageScoreChange[]
   courageTrackSteps: CourageTrackStep[]
   courageRejections: CourageRejection[]
+  activities: Activity[]
+  activityLogs: ActivityLog[]
   active: ActiveWorkout | null
   settings: AppSettings
   exerciseById: Map<ID, Exercise>
@@ -89,6 +95,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [courageScoreChanges, setCourageScoreChanges] = useState<CourageScoreChange[]>([])
   const [courageTrackSteps, setCourageTrackSteps] = useState<CourageTrackStep[]>([])
   const [courageRejections, setCourageRejections] = useState<CourageRejection[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
   const [active, setActiveState] = useState<ActiveWorkout | null>(null)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -110,6 +118,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       changes,
       rejections,
       trilha,
+      acts,
+      actLogs,
       act,
       prefs,
       pending,
@@ -125,6 +135,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       allCourageScoreChanges(),
       allCourageRejections(),
       allCourageTrackSteps(),
+      allActivities(true),
+      allActivityLogs(),
       getActiveWorkout(),
       getSettings(),
       outboxCount(),
@@ -140,6 +152,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCourageScoreChanges(changes)
     setCourageRejections(rejections)
     setCourageTrackSteps(trilha)
+    setActivities(acts)
+    setActivityLogs(actLogs)
     setActiveState(act ?? null)
     setSettings(prefs)
     setPendingCount(pending)
@@ -231,6 +245,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     courageScoreChanges,
     courageRejections,
     courageTrackSteps,
+    activities,
+    activityLogs,
     active,
     settings,
     exerciseById,

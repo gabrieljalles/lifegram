@@ -147,7 +147,7 @@ export default function Performance() {
 
       <div className="px-4 pt-3">
         <LevelCard xp={xp}>
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-ink-700/60 pt-3 text-center">
+          <div className="mt-3 grid grid-cols-3 gap-2 border-t border-ink-700/60 pt-3 text-center">
             <div>
               <p className="tnum text-lg font-black text-brand-400">{xp.breakdown.treino}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">XP de treino</p>
@@ -155,6 +155,10 @@ export default function Performance() {
             <div>
               <p className="tnum text-lg font-black text-fire-400">{xp.breakdown.coragem}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">XP de coragem</p>
+            </div>
+            <div>
+              <p className="tnum text-lg font-black text-go-400">{xp.breakdown.agenda}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">XP da agenda</p>
             </div>
           </div>
         </LevelCard>

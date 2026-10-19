@@ -5,6 +5,10 @@ import { ptBR } from 'date-fns/locale'
 import PRCelebration from '../components/PRCelebration'
 import ThreeSeconds from '../components/ThreeSeconds'
 import { LevelCard, MissionCard, StatPill } from '../components/game'
+import { NextActivityCard } from '../components/agenda-ui'
+import { useNow } from '../lib/useNow'
+import { agendaOf, nextOccurrence, streakOf } from '../lib/activities'
+import { toggleActivity } from '../lib/activityActions'
 import { addRejection } from '../lib/courageActions'
 import { PERFECT_DAY_XP, type Mission, type WeeklyBoss } from '../lib/missions'
 import { onlyNaos } from '../lib/rejections'
@@ -45,8 +49,19 @@ const greeting = (hour: number) =>
  */
 export default function Today() {
   const navigate = useNavigate()
-  const { sessions, routines, settings, setLogs, courageRejections, active, setActive, reload } =
-    useApp()
+  const {
+    sessions,
+    routines,
+    settings,
+    setLogs,
+    courageRejections,
+    activities,
+    activityLogs,
+    active,
+    setActive,
+    reload,
+  } = useApp()
+  const clock = useNow()
   const { xp, perfect, missions, boss } = useGame()
   const [threeSeconds, setThreeSeconds] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -61,6 +76,23 @@ export default function Today() {
     [setLogs],
   )
   const naosTotal = useMemo(() => onlyNaos(courageRejections).length, [courageRejections])
+
+  const next = useMemo(
+    () => nextOccurrence(activities, activityLogs, clock),
+    [activities, activityLogs, clock],
+  )
+  const todayLeft = useMemo(
+    () => agendaOf(activities, activityLogs, clock, clock).filter((o) => !o.done).length,
+    [activities, activityLogs, clock],
+  )
+  const hasActivities = activities.some((a) => !a.archived)
+
+  const completeNext = async () => {
+    if (!next) return
+    await toggleActivity(next.activity.id, next.day)
+    vibrate(40)
+    await reload()
+  }
 
   // Subiu de nivel desde a ultima visita: festa. Primeira visita so registra.
   useEffect(() => {
@@ -167,6 +199,39 @@ export default function Today() {
           </button>
         </div>
       )}
+
+      {/* Agenda: a proxima coisa marcada, com o check a um toque. */}
+      <div className="px-4 pt-4">
+        {next ? (
+          <NextActivityCard
+            occ={next}
+            streak={streakOf(next.activity, activityLogs, clock)}
+            now={clock}
+            todayLeft={todayLeft}
+            onDone={() => void completeNext()}
+            onOpen={() => navigate('/agenda')}
+          />
+        ) : (
+          !hasActivities && (
+            <button
+              type="button"
+              onClick={() => navigate('/agenda/nova')}
+              className="flex w-full items-center gap-3 rounded-2xl border-2 border-dashed border-ink-600 bg-ink-850/60 p-3.5 text-left active:bg-ink-800"
+            >
+              <span className="text-3xl" aria-hidden="true">
+                🗓️
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-black">Programe sua rotina</span>
+                <span className="block text-xs text-ink-400">
+                  Hábitos e compromissos viram missões com XP.
+                </span>
+              </span>
+              <span className="text-sm font-bold text-brand-400">Criar ›</span>
+            </button>
+          )
+        )}
+      </div>
 
       <section className="px-4 pt-5">
         <div className="mb-2.5 flex items-baseline justify-between">

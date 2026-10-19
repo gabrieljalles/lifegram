@@ -194,9 +194,32 @@ describe('missao da trilha', () => {
     }
     const hoje = dailyMissions(input, now).find((m) => m.id === 'trilha')!
     expect(hoje).toMatchObject({ title: first.name, done: true })
+    // O proximo ja aparece no mesmo card, opcional.
+    expect(hoje.next?.title).toBe(second.name)
 
     // No dia seguinte a missao ja aponta para o proximo, em aberto.
     const amanha = dailyMissions(input, new Date('2026-10-15T09:00:00')).find((m) => m.id === 'trilha')!
     expect(amanha).toMatchObject({ title: second.name, done: false })
+    expect(amanha.next).toBeUndefined()
+  })
+
+  it('fez o proximo tambem: ele sobe e aparece um novo embaixo', async () => {
+    const { flatSteps, CARISMA } = await import('./tracks')
+    const [first, second, third] = flatSteps(CARISMA).map(({ step }) => step)
+    const missao = dailyMissions(
+      {
+        routines: [],
+        sessions: [],
+        settings: DEFAULT_SETTINGS,
+        rejections: [],
+        trackSteps: [
+          row(first.id, 1, '2026-10-14T10:00:00', '2026-10-14T10:00:00'),
+          row(second.id, 1, '2026-10-14T11:00:00', '2026-10-14T11:00:00'),
+        ],
+      },
+      now,
+    ).find((m) => m.id === 'trilha')!
+    expect(missao).toMatchObject({ title: second.name, done: true })
+    expect(missao.next?.title).toBe(third.name)
   })
 })

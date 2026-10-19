@@ -114,6 +114,39 @@ export function MissionCard({
           )}
         </span>
       </button>
+      {mission.next && (
+        <div className="mt-3 border-t border-go-500/30 pt-3">
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink-950/50 text-2xl"
+            >
+              {mission.icon}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-ink-400">
+                  Próximo · opcional
+                </span>
+                <span className="tnum rounded-full bg-pr-500/20 px-1.5 py-px text-[10px] font-black text-pr-400">
+                  +{mission.next.xp} XP
+                </span>
+              </span>
+              <span className="mt-0.5 block truncate text-base font-bold">{mission.next.title}</span>
+              <span className="mt-0.5 block text-xs leading-snug text-ink-400">
+                {mission.next.detail}
+              </span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onClick}
+            className="mt-2.5 w-full rounded-xl border border-brand-400/60 bg-brand-600/25 py-2.5 text-sm font-black uppercase tracking-wide text-brand-400 active:bg-brand-600/40"
+          >
+            Fazer agora ›
+          </button>
+        </div>
+      )}
       {action && <div className="mt-3">{action}</div>}
     </div>
   )

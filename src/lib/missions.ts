@@ -31,6 +31,11 @@ export interface Mission {
   /** Missao que nao cobra: dia livre na agenda. */
   optional?: boolean
   progress?: { value: number; target: number }
+  /**
+   * Missao cumprida que ainda pode continuar: o proximo passo aparece dentro
+   * do mesmo card, opcional. Feito, ele sobe para o lugar do anterior.
+   */
+  next?: { title: string; detail: string; xp: number }
   /** Treino sugerido para o botao de comecar. */
   routine?: Routine
   /** Para onde o card leva. */
@@ -115,14 +120,29 @@ export function dailyMissions(input: MissionInput, now = new Date()): Mission[] 
   const stepId = doneToday?.step_id ?? currentStepId(CARISMA, input.trackSteps)
   const step = steps.find(({ step }) => step.id === stepId)?.step
   if (step) {
+    const currentId = currentStepId(CARISMA, input.trackSteps)
+    const upcoming = steps.find(({ step }) => step.id === currentId)?.step
     missions.push({
       id: 'trilha',
       icon: '🗺️',
       title: step.name,
-      detail: doneToday ? 'Degrau de hoje feito. O próximo fica para amanhã.' : step.what,
+      detail: doneToday ? 'Degrau de hoje feito.' : step.what,
       done: Boolean(doneToday),
       xp: XP_RULES.trilha,
       to: '/coragem/mapa',
+      // Degrau que pede mais de uma execucao continua o mesmo: o "proximo"
+      // e repetir ele.
+      next:
+        doneToday && upcoming
+          ? {
+              title: upcoming.id === step.id ? `${upcoming.name} (de novo)` : upcoming.name,
+              detail:
+                upcoming.id === step.id
+                  ? 'Este degrau pede mais execuções — dá para repetir hoje.'
+                  : upcoming.what,
+              xp: XP_RULES.trilha,
+            }
+          : undefined,
     })
   }
 
