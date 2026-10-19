@@ -44,7 +44,9 @@ export interface Mission {
 
 export interface MissionInput {
   routines: Routine[]
-  sessions: Array<Pick<Session, 'started_at' | 'finished_at' | 'routine_id'>>
+  sessions: Array<
+    Pick<Session, 'started_at' | 'finished_at' | 'routine_id'> & Partial<Pick<Session, 'routine_name'>>
+  >
   settings: Pick<AppSettings, 'rest_days'>
   rejections: CourageRejection[]
   trackSteps: CourageTrackStep[]
@@ -53,9 +55,11 @@ export interface MissionInput {
 export function dailyMissions(input: MissionInput, now = new Date()): Mission[] {
   const weekday = now.getDay() as Weekday
   const todayKey = format(now, 'yyyy-MM-dd')
-  const trainedToday = input.sessions.some(
-    (s) => s.finished_at && format(parseISO(s.started_at), 'yyyy-MM-dd') === todayKey,
-  )
+  // Treino feito hoje (o mais recente): pode nao ser o recomendado.
+  const doneSession = input.sessions
+    .filter((s) => s.finished_at && format(parseISO(s.started_at), 'yyyy-MM-dd') === todayKey)
+    .sort((a, b) => b.started_at.localeCompare(a.started_at))[0]
+  const trainedToday = Boolean(doneSession)
 
   const missions: Mission[] = []
 
@@ -72,11 +76,16 @@ export function dailyMissions(input: MissionInput, now = new Date()): Mission[] 
   } else {
     const scheduled = routinesForDay(input.routines, weekday)
     const free = scheduled.length === 0
-    const routine = scheduled[0] ?? oldestRoutine(input.routines, input.sessions)
+    const suggested = scheduled[0] ?? oldestRoutine(input.routines, input.sessions)
+    // Ja treinou: a missao mostra o que foi feito, nao o que era sugerido.
+    const routine = doneSession
+      ? (input.routines.find((r) => r.id === doneSession.routine_id) ?? null)
+      : suggested
+    const title = doneSession?.routine_name || routine?.name || suggested?.name || 'Treinar'
     missions.push({
       id: 'treino',
       icon: '🏋️',
-      title: routine ? routine.name : 'Treinar',
+      title,
       detail: trainedToday
         ? 'Treino feito. Corrente alimentada.'
         : free

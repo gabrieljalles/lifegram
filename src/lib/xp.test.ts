@@ -107,6 +107,29 @@ describe('missoes do dia', () => {
     expect(missions.some((m) => m.id === 'trilha')).toBe(true)
   })
 
+  it('treinou outro que nao o sugerido: mostra o que foi feito', () => {
+    const missions = dailyMissions(
+      {
+        routines: [routine('A', [3]), routine('B', [1])],
+        sessions: [
+          {
+            routine_id: 'B',
+            routine_name: 'Treino B',
+            started_at: iso('2026-10-14T08:00:00'),
+            finished_at: iso('2026-10-14T09:00:00'),
+          },
+        ],
+        settings: DEFAULT_SETTINGS,
+        rejections: [],
+        trackSteps: [],
+      },
+      now,
+    )
+    const treino = missions.find((m) => m.id === 'treino')!
+    expect(treino).toMatchObject({ title: 'Treino B', done: true })
+    expect(treino.routine?.id).toBe('B')
+  })
+
   it('dia de descanso vira missao cumprida', () => {
     const missions = dailyMissions(
       {
