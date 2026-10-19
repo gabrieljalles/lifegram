@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addDays, format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -8,7 +8,9 @@ import { agendaOf, dayKey, describeWhen, streakOf, xpOf } from '../../lib/activi
 import { useNow } from '../../lib/useNow'
 import { toggleActivity } from '../../lib/activityActions'
 import {
+  cachedGcalEvents,
   connectGcal,
+  fetchGcalEvents,
   disconnectGcal,
   gcalClientIdFromApp,
   gcalLinked,
@@ -17,6 +19,7 @@ import {
   isValidClientId,
   setGcalClientId,
   syncGcal,
+  type GcalEvent,
 } from '../../lib/gcal'
 import { useApp } from '../../lib/store'
 import { vibrate } from '../../lib/timer'
@@ -31,6 +34,18 @@ export default function Agenda() {
   const { activities, activityLogs, reload } = useApp()
   const now = useNow()
   const [selected, setSelected] = useState(() => dayKey(new Date()))
+  const [google, setGoogle] = useState<GcalEvent[]>([])
+
+  // Compromissos do Google: mostra o ultimo lido na hora e atualiza em
+  // seguida, se ainda houver sessao valida (sem abrir login sozinho).
+  const loadGoogle = useCallback(async () => {
+    setGoogle(await cachedGcalEvents())
+    if (gcalTokenValid()) setGoogle((await fetchGcalEvents(new Date(), 7)).events)
+  }, [])
+  useEffect(() => {
+    void loadGoogle()
+  }, [loadGoogle])
+  const googleDay = google.filter((event) => event.day === selected)
 
   const live = useMemo(() => activities.filter((a) => !a.archived), [activities])
   const todayKey = dayKey(now)
@@ -60,7 +75,7 @@ export default function Agenda() {
     await reload()
   }
 
-  if (live.length === 0) {
+  if (live.length === 0 && google.length === 0) {
     return (
       <div>
         <Header title="Agenda" subtitle="Rotina e compromissos" />
@@ -70,7 +85,7 @@ export default function Agenda() {
           description="Crie hábitos que se repetem (ler uma página, seg a sex às 7h) ou compromissos de um dia só. Cada um vira uma missão com XP."
           action={<Button onClick={() => navigate('/agenda/nova')}>+ Nova atividade</Button>}
         />
-        <GoogleCard activities={activities} onChange={reload} />
+        <GoogleCard activities={activities} onChange={reload} onSynced={loadGoogle} />
       </div>
     )
   }
@@ -93,6 +108,7 @@ export default function Agenda() {
           const key = dayKey(date)
           const list = agendaOf(live, activityLogs, date, now)
           const closed = list.length > 0 && list.every((o) => o.done)
+          const hasGoogle = google.some((event) => event.day === key)
           const on = key === selected
           return (
             <button
@@ -111,7 +127,13 @@ export default function Agenda() {
               <span
                 aria-hidden="true"
                 className={`mt-0.5 h-1.5 w-1.5 rounded-full ${
-                  closed ? 'bg-go-400' : list.length > 0 ? 'bg-pr-400' : 'bg-transparent'
+                  closed
+                    ? 'bg-go-400'
+                    : list.length > 0
+                      ? 'bg-pr-400'
+                      : hasGoogle
+                        ? 'bg-brand-400'
+                        : 'bg-transparent'
                 }`}
               />
             </button>
@@ -148,7 +170,7 @@ export default function Agenda() {
         )}
 
         {agenda.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-ink-700 p-4 text-center text-sm text-ink-400">
+          googleDay.length === 0 && <p className="rounded-2xl border border-dashed border-ink-700 p-4 text-center text-sm text-ink-400">
             Dia livre. Nada marcado.
           </p>
         ) : (
@@ -170,6 +192,8 @@ export default function Agenda() {
             🏆 Dia fechado! Todas as missões cumpridas.
           </p>
         )}
+
+        {googleDay.length > 0 && <GoogleDay events={googleDay} />}
       </section>
 
       <Section title={`Recorrentes · ${recurring.length}`}>
@@ -190,7 +214,41 @@ export default function Agenda() {
         />
       </Section>
 
-      <GoogleCard activities={activities} onChange={reload} />
+      <GoogleCard activities={activities} onChange={reload} onSynced={loadGoogle} />
+    </div>
+  )
+}
+
+/** Compromissos do Google no dia: so para ver, nao valem XP. */
+function GoogleDay({ events }: { events: GcalEvent[] }) {
+  return (
+    <div className="mt-4">
+      <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-ink-400">
+        📅 Do Google Agenda
+      </h3>
+      <Card className="divide-y divide-ink-700 overflow-hidden">
+        {events.map((event) => (
+          <a
+            key={event.id}
+            href={event.link ?? undefined}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-3 px-3.5 py-2.5 active:bg-ink-800"
+          >
+            <span className="tnum w-14 shrink-0 text-xs font-bold text-brand-300">
+              {event.time ?? 'dia todo'}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold">{event.title}</span>
+              {event.time && event.end && (
+                <span className="tnum block text-xs text-ink-400">
+                  {event.time}–{event.end}
+                </span>
+              )}
+            </span>
+          </a>
+        ))}
+      </Card>
     </div>
   )
 }
@@ -241,7 +299,16 @@ function CatalogList({
   )
 }
 
-function GoogleCard({ activities, onChange }: { activities: Activity[]; onChange: () => Promise<void> }) {
+function GoogleCard({
+  activities,
+  onChange,
+  onSynced,
+}: {
+  activities: Activity[]
+  onChange: () => Promise<void>
+  /** Depois de enviar, le de volta os compromissos do Google. */
+  onSynced: () => Promise<void>
+}) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [linked, setLinked] = useState(gcalLinked)
@@ -274,6 +341,7 @@ function GoogleCard({ activities, onChange }: { activities: Activity[]; onChange
         setMessage(total === 0 ? 'Tudo já estava na agenda.' : `${total} evento(s) atualizados no Google.`)
       }
       await onChange()
+      await onSynced()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não deu para conectar.')
     } finally {
@@ -305,6 +373,7 @@ function GoogleCard({ activities, onChange }: { activities: Activity[]; onChange
             <p className="text-sm font-bold">{linked ? 'Conectado' : 'Não conectado'}</p>
             <p className="text-xs text-ink-400">
               Cada atividade vira um evento na sua agenda principal, com repetição e aviso do Google.
+              Seus outros compromissos aparecem aqui na Agenda.
             </p>
           </div>
         </div>

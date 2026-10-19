@@ -7,8 +7,9 @@ import { nowISO } from './types'
 /**
  * Espelho das atividades no Google Agenda.
  *
- * Mao unica: o app e a fonte da verdade e o Google so recebe — assim o
- * celular avisa na hora marcada sem o app precisar de servidor de push.
+ * As atividades vao do app para o Google — assim o celular avisa na hora
+ * marcada sem o app precisar de servidor de push. No sentido contrario, os
+ * outros compromissos do Google sao lidos e aparecem na Agenda, so para ver.
  *
  * Dois caminhos:
  * - Com um Client ID (digitado no app ou VITE_GOOGLE_CLIENT_ID): login Google
@@ -67,6 +68,8 @@ export const isGcalConfigured = (): boolean => gcalClientId() !== null
 const TOKEN_KEY = 'gcal:token'
 /** Versao (updated_at) de cada atividade ja enviada: so reenvia o que mudou. */
 const SYNCED_KEY = 'gcal:synced'
+/** Ultimos eventos lidos do Google: a Agenda mostra mesmo offline ou sem login. */
+const EVENTS_KEY = 'gcal:events'
 
 interface StoredToken {
   access_token: string
@@ -355,4 +358,95 @@ export async function syncGcal(activities: Activity[]): Promise<GcalResult> {
     result.error = error instanceof Error ? error.message : String(error)
   }
   return result
+}
+
+/* ------------------------------------------------- leitura do Google */
+
+/** Compromisso do Google mostrado na Agenda: so leitura, nao vira missao. */
+export interface GcalEvent {
+  id: string
+  title: string
+  /** Dia em que aparece (yyyy-MM-dd). Evento de varios dias aparece em cada um. */
+  day: string
+  /** HH:mm; null = dia inteiro. */
+  time: string | null
+  end: string | null
+  link: string | null
+}
+
+export interface GoogleItem {
+  id: string
+  status?: string
+  summary?: string
+  htmlLink?: string
+  start?: { date?: string; dateTime?: string }
+  end?: { date?: string; dateTime?: string }
+  extendedProperties?: { private?: Record<string, string> }
+}
+
+/**
+ * Converte a resposta do Google. Fica de fora o que o proprio app criou — a
+ * atividade ja aparece como missao, nao precisa aparecer duas vezes.
+ */
+export function fromGoogle(items: GoogleItem[]): GcalEvent[] {
+  const events: GcalEvent[] = []
+  for (const item of items) {
+    if (item.status === 'cancelled' || item.extendedProperties?.private?.lifegram_id) continue
+    const title = item.summary?.trim() || '(sem título)'
+    const link = item.htmlLink ?? null
+    if (item.start?.dateTime) {
+      const start = parseISO(item.start.dateTime)
+      const end = item.end?.dateTime ? parseISO(item.end.dateTime) : null
+      events.push({
+        id: item.id,
+        title,
+        day: dayKey(start),
+        time: format(start, 'HH:mm'),
+        end: end ? format(end, 'HH:mm') : null,
+        link,
+      })
+    } else if (item.start?.date) {
+      // Dia inteiro: o fim e exclusivo (evento de 1 dia termina no dia seguinte).
+      const last = item.end?.date ?? dayKey(addDays(parseISO(item.start.date), 1))
+      for (let day = parseISO(item.start.date); dayKey(day) < last; day = addDays(day, 1)) {
+        events.push({ id: `${item.id}:${dayKey(day)}`, title, day: dayKey(day), time: null, end: null, link })
+      }
+    }
+  }
+  return events.sort((a, b) => `${a.day}${a.time ?? ''}`.localeCompare(`${b.day}${b.time ?? ''}`))
+}
+
+export async function cachedGcalEvents(): Promise<GcalEvent[]> {
+  return (await metaGet<GcalEvent[]>(EVENTS_KEY)) ?? []
+}
+
+export interface GcalFetch {
+  events: GcalEvent[]
+  needsLogin: boolean
+  error?: string
+}
+
+/** Le os compromissos do Google de `from` ate `days` dias depois. */
+export async function fetchGcalEvents(from: Date, days: number): Promise<GcalFetch> {
+  const token = (readToken() ?? memoryToken)?.access_token
+  if (!token) return { events: await cachedGcalEvents(), needsLogin: true }
+  const start = parseISO(dayKey(from))
+  const params = new URLSearchParams({
+    timeMin: start.toISOString(),
+    timeMax: addDays(start, days).toISOString(),
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: '250',
+  })
+  try {
+    const response = await call(token, 'GET', `${API}?${params.toString()}`)
+    if (!response.ok) throw new Error(`Google respondeu ${response.status}`)
+    const events = fromGoogle(((await response.json()) as { items?: GoogleItem[] }).items ?? [])
+    await metaSet(EVENTS_KEY, events)
+    return { events, needsLogin: false }
+  } catch (error) {
+    const cached = await cachedGcalEvents()
+    if (error instanceof AuthExpired) return { events: cached, needsLogin: true }
+    return { events: cached, needsLogin: false, error: error instanceof Error ? error.message : String(error) }
+  }
 }

@@ -7,7 +7,7 @@ import {
   relativeLabel,
   streakOf,
 } from './activities'
-import { firstDay, rruleOf, templateUrl, toEvent } from './gcal'
+import { firstDay, fromGoogle, rruleOf, templateUrl, toEvent } from './gcal'
 import type { Activity, ActivityLog } from './types'
 
 const base: Activity = {
@@ -146,5 +146,22 @@ describe('Google Agenda', () => {
     const url = new URL(templateUrl(act({ time: '07:00' }))!)
     expect(url.searchParams.get('recur')).toBe(rruleOf(base))
     expect(url.searchParams.get('dates')).toBe('20261001T070000/20261001T073000')
+  })
+})
+
+describe('eventos lidos do Google', () => {
+  it('ignora o que o app criou, abre o dia inteiro em cada dia e ordena', () => {
+    const events = fromGoogle([
+      { id: 'meu', summary: 'Ler', start: { dateTime: '2026-10-20T07:00:00-03:00' }, extendedProperties: { private: { lifegram_id: 'ler' } } },
+      { id: 'cancelado', status: 'cancelled', start: { dateTime: '2026-10-20T08:00:00-03:00' } },
+      { id: 'viagem', summary: 'Viagem', start: { date: '2026-10-20' }, end: { date: '2026-10-22' } },
+      { id: 'dentista', summary: 'Dentista', start: { dateTime: new Date(2026, 9, 20, 14, 30).toISOString() }, end: { dateTime: new Date(2026, 9, 20, 15, 0).toISOString() } },
+    ])
+    expect(events.map((e) => [e.day, e.time, e.title])).toEqual([
+      ['2026-10-20', null, 'Viagem'],
+      ['2026-10-20', '14:30', 'Dentista'],
+      ['2026-10-21', null, 'Viagem'],
+    ])
+    expect(events[1].end).toBe('15:00')
   })
 })
