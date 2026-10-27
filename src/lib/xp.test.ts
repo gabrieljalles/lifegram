@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { computeXP, levelOf, titleOf, xpToReach } from './xp'
 import { contextBreakdown, stageToday } from './rejections'
-import { DAILY_NAOS, dailyMissions } from './missions'
+import { dailyMissions } from './missions'
 import { DEFAULT_SETTINGS, type CourageRejection, type Routine } from './types'
 
 const now = new Date('2026-10-14T15:00:00')
@@ -87,7 +87,7 @@ describe('missoes do dia', () => {
   const routine = (id: string, days: number[]): Routine =>
     ({ id, name: `Treino ${id}`, position: 0, archived: false, scheduled_days: days }) as unknown as Routine
 
-  it('treino marcado, naos e progresso', () => {
+  it('treino marcado e trilha; nãos não viram missão', () => {
     const missions = dailyMissions(
       {
         routines: [routine('A', [3])],
@@ -101,9 +101,7 @@ describe('missoes do dia', () => {
     const treino = missions.find((m) => m.id === 'treino')!
     expect(treino.title).toBe('Treino A')
     expect(treino.optional).toBe(false)
-    const naos = missions.find((m) => m.id === 'naos')!
-    expect(naos.progress).toEqual({ value: 1, target: DAILY_NAOS })
-    expect(naos.done).toBe(false)
+    expect(missions.map((m) => m.id)).toEqual(['treino', 'trilha'])
     expect(missions.some((m) => m.id === 'trilha')).toBe(true)
   })
 
@@ -146,7 +144,7 @@ describe('missoes do dia', () => {
 })
 
 describe('dia perfeito e chefao', () => {
-  it('treino + 3 nãos fecha o dia; sequencia conta para tras', async () => {
+  it('treino fecha o dia; sequencia conta para tras', async () => {
     const { perfectDays, weeklyBoss } = await import('./missions')
     const naos = (day: string) => [1, 2, 3].map((h) => reg(`${day}T1${h}:00:00`))
     const sessions = ['2026-10-13', '2026-10-14'].map((d) => ({
@@ -155,7 +153,7 @@ describe('dia perfeito e chefao', () => {
       routine_id: null,
     }))
     const rejections = [...naos('2026-10-13'), ...naos('2026-10-14'), ...naos('2026-10-10')]
-    const perfect = perfectDays({ sessions, settings: DEFAULT_SETTINGS, rejections }, now)
+    const perfect = perfectDays({ sessions, settings: DEFAULT_SETTINGS }, now)
     expect(perfect).toEqual({ total: 2, streak: 2, today: true })
 
     const boss = weeklyBoss(

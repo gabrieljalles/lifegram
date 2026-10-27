@@ -3,13 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import PRCelebration from '../components/PRCelebration'
-import ThreeSeconds from '../components/ThreeSeconds'
 import { LevelCard, MissionCard, StatPill } from '../components/game'
 import { NextActivityCard } from '../components/agenda-ui'
 import { useNow } from '../lib/useNow'
 import { agendaOf, nextOccurrence, streakOf } from '../lib/activities'
 import { toggleActivity } from '../lib/activityActions'
-import { addRejection } from '../lib/courageActions'
 import { PERFECT_DAY_XP, type Mission, type WeeklyBoss } from '../lib/missions'
 import { onlyNaos } from '../lib/rejections'
 import { computeScheduleStreak, scheduleOf } from '../lib/stats'
@@ -63,7 +61,6 @@ export default function Today() {
   } = useApp()
   const clock = useNow()
   const { xp, perfect, missions, boss } = useGame()
-  const [threeSeconds, setThreeSeconds] = useState(false)
   const [busy, setBusy] = useState(false)
   const [levelUp, setLevelUp] = useState<number | null>(null)
 
@@ -120,18 +117,6 @@ export default function Today() {
       navigate('/treino')
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Não foi possível iniciar o treino.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const quickNao = async () => {
-    if (busy) return
-    setBusy(true)
-    try {
-      await addRejection(null, 'nao')
-      await reload()
-      vibrate(60)
     } finally {
       setBusy(false)
     }
@@ -257,7 +242,6 @@ export default function Today() {
         <Chest open={allDone} streak={perfect.streak} />
       </section>
 
-      {threeSeconds && <ThreeSeconds onClose={() => setThreeSeconds(false)} />}
       {levelUp !== null && (
         <PRCelebration
           icon="🛡️"
@@ -280,27 +264,6 @@ export default function Today() {
         >
           {active ? 'Continuar treino' : mission.routine ? 'Começar treino ›' : 'Montar um treino ›'}
         </button>
-      )
-    }
-    if (mission.id === 'naos') {
-      return (
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setThreeSeconds(true)}
-            className="flex-1 rounded-xl bg-fire-500 py-3 text-sm font-black uppercase tracking-wide text-ink-950 shadow-[0_0_18px_rgba(249,115,22,0.4)] active:bg-fire-400"
-          >
-            ⚡ 3 segundos
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void quickNao()}
-            className="rounded-xl border border-red-500/60 bg-red-500/15 px-4 py-3 text-sm font-bold text-red-300 active:bg-red-500/25 disabled:opacity-50"
-          >
-            +1 não
-          </button>
-        </div>
       )
     }
     return null
@@ -326,7 +289,7 @@ function Chest({ open, streak }: { open: boolean; streak: number }) {
         <p className="text-xs text-ink-400">
           {open
             ? `+${PERFECT_DAY_XP} XP de bônus${streak > 1 ? ` · ${streak} dias perfeitos seguidos` : ''}`
-            : `Cumpra treino e nãos para abrir · +${PERFECT_DAY_XP} XP`}
+            : `Cumpra as missões para abrir · +${PERFECT_DAY_XP} XP`}
         </p>
       </div>
     </div>

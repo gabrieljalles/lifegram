@@ -1,6 +1,5 @@
 import { format, parseISO } from 'date-fns'
 import { generateBoss, weekSeed, type BossDesign } from './bossGen'
-import { stageToday } from './rejections'
 import { routinesForDay } from './stats'
 import { CARISMA, currentStepId, flatSteps } from './tracks'
 import { FUNNEL_XP, XP_RULES } from './xp'
@@ -14,15 +13,12 @@ import type {
 } from './types'
 
 /**
- * Missoes do dia: no maximo tres coisas pequenas e claras. A ideia e tirar a
+ * Missoes do dia: poucas coisas pequenas e claras. A ideia e tirar a
  * decisao do caminho — abrir o app e ja saber o que fazer hoje.
  */
 
-/** Nãos por dia: pouco o bastante para caber num dia normal. */
-export const DAILY_NAOS = 3
-
 export interface Mission {
-  id: 'treino' | 'descanso' | 'naos' | 'trilha'
+  id: 'treino' | 'descanso' | 'trilha'
   icon: string
   title: string
   detail: string
@@ -98,21 +94,6 @@ export function dailyMissions(input: MissionInput, now = new Date()): Mission[] 
       to: '/academia',
     })
   }
-
-  const naos = stageToday(input.rejections, 'nao', now)
-  missions.push({
-    id: 'naos',
-    icon: '🦁',
-    title: `Tomar ${DAILY_NAOS} nãos`,
-    detail:
-      naos >= DAILY_NAOS
-        ? 'Missão cumprida. Cada não a mais é bônus.'
-        : 'Peça algo a alguém. O não é o placar, não o sim.',
-    done: naos >= DAILY_NAOS,
-    xp: DAILY_NAOS * FUNNEL_XP.nao,
-    progress: { value: Math.min(naos, DAILY_NAOS), target: DAILY_NAOS },
-    to: '/coragem',
-  })
 
   // Ja treinou um degrau hoje: a missao mostra ESSE degrau, cumprido. Sem
   // isso, ao fechar um degrau a trilha avancava e o proximo — ainda nao
@@ -192,45 +173,34 @@ export interface PerfectDays {
 }
 
 /**
- * Dia perfeito = treinou (ou era descanso declarado) e tomou os nãos do dia.
- * A trilha fica de fora: ela nao guarda data por execucao, entao nao da para
- * reconstruir o passado com ela.
+ * Dia perfeito = treinou (ou era descanso declarado). A trilha fica de fora:
+ * ela nao guarda data por execucao, entao nao da para reconstruir o passado
+ * com ela. O bonus de XP so conta dias treinados — descanso mantem a
+ * sequencia, mas nao paga bau.
  */
 export function perfectDays(
-  input: Pick<MissionInput, 'sessions' | 'settings' | 'rejections'>,
+  input: Pick<MissionInput, 'sessions' | 'settings'>,
   now = new Date(),
 ): PerfectDays {
   const trained = new Set<string>()
   for (const s of input.sessions) {
     if (s.finished_at) trained.add(format(parseISO(s.started_at), 'yyyy-MM-dd'))
   }
-  const naos = new Map<string, number>()
-  for (const item of input.rejections) {
-    if ((item.kind ?? 'nao') !== 'nao') continue
-    const key = format(parseISO(item.happened_at), 'yyyy-MM-dd')
-    naos.set(key, (naos.get(key) ?? 0) + 1)
-  }
 
   const rest = new Set(input.settings.rest_days)
-  const isPerfect = (day: Date) => {
-    const key = format(day, 'yyyy-MM-dd')
-    const trainedOk = trained.has(key) || rest.has(day.getDay() as Weekday)
-    return trainedOk && (naos.get(key) ?? 0) >= DAILY_NAOS
-  }
-
-  // So dias com nãos podem ser perfeitos: varre eles, nao o calendario todo.
-  let total = 0
-  for (const key of naos.keys()) if (isPerfect(parseISO(key))) total++
+  const isPerfect = (day: Date) =>
+    trained.has(format(day, 'yyyy-MM-dd')) || rest.has(day.getDay() as Weekday)
 
   const today = isPerfect(now)
   let streak = 0
   const day = new Date(now)
   if (!today) day.setDate(day.getDate() - 1)
-  while (isPerfect(day)) {
+  // Limite de um ano: com a semana inteira de descanso o laco nunca pararia.
+  while (streak < 366 && isPerfect(day)) {
     streak++
     day.setDate(day.getDate() - 1)
   }
-  return { total, streak, today }
+  return { total: trained.size, streak, today }
 }
 
 /* ------------------------------------------------------- chefao da semana */
