@@ -13,6 +13,7 @@ export type BossMouth = 'presas' | 'sorriso' | 'boca-aberta' | 'dentuca'
 export type BossArms = 'nenhum' | 'cotocos' | 'tentaculos' | 'garras'
 export type BossLegs = 'flutua' | 'cotocos' | 'aranha'
 export type BossExtra = 'nenhum' | 'coroa' | 'asas' | 'espinhos' | 'aureola'
+export type BossPattern = 'liso' | 'manchas' | 'listras' | 'pintas'
 
 export interface BossTraits {
   body: BossBody
@@ -28,6 +29,8 @@ export interface BossTraits {
   extra: BossExtra
   /** Achatado (<1) ou esticado (>1). */
   stretch: number
+  /** Estampa da pele, num tom mais escuro da cor do corpo. */
+  pattern: BossPattern
 }
 
 export interface BossDesign {
@@ -140,8 +143,12 @@ export function generateBoss(seed: number): BossDesign {
     legs: pick(random, ['flutua', 'cotocos', 'cotocos', 'aranha'] as const),
     extra: pick(random, ['nenhum', 'coroa', 'asas', 'espinhos', 'aureola'] as const),
     stretch: 0.85 + random() * 0.35,
+    pattern: 'liso',
   }
   const vice = pick(random, VICES)
+  // Sorteada por ultimo: as pecas e o nome de cada semana continuam os mesmos
+  // de antes da estampa existir.
+  traits.pattern = pick(random, ['liso', 'manchas', 'manchas', 'listras', 'pintas'] as const)
   return {
     seed,
     name: `${creatureOf(traits, random)} ${vice.name}`,

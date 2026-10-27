@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import type { BossDesign, BossTraits } from '../lib/bossGen'
+import { rng, type BossDesign, type BossPattern, type BossTraits } from '../lib/bossGen'
 
 /**
  * O chefao da semana em 3D.
  *
  * Montado so com formas simples (esfera, capsula, cone, toro) e sombreamento
- * cartoon com contorno: cada peca do gerador vira um pedaco do boneco, entao
+ * cartoon com contorno, estampa na pele e brilho de borda: cada peca do gerador vira um pedaco do boneco, entao
  * combinacoes novas nao exigem modelo novo. Carregado sob demanda (lazy) — o
  * three.js pesa e nao pode atrasar a abertura do app.
  *
@@ -36,7 +36,7 @@ export default function Boss3D({ design, life, defeated, height = 230 }: Props) 
     if (!mount) return
     let api: BossApi
     try {
-      api = createBoss(mount, design.traits)
+      api = createBoss(mount, design.traits, design.seed)
     } catch {
       setFailed(true)
       return
@@ -170,7 +170,7 @@ function bodyShape(t: BossTraits): BodyShape {
     const hz = 1.0
     const ell = (x: number, y: number) => 1 - (x / hw) ** 2 - (y / hh) ** 2
     return {
-      geometry: new THREE.SphereGeometry(1, 40, 28),
+      geometry: new THREE.SphereGeometry(1, 64, 44),
       scale: new THREE.Vector3(hw, hh, hz),
       hw,
       hh,
@@ -188,7 +188,7 @@ function bodyShape(t: BossTraits): BodyShape {
       return Math.sqrt(Math.max(0, r * r - x * x - dy * dy))
     }
     return {
-      geometry: new THREE.CapsuleGeometry(r, half * 2, 10, 28),
+      geometry: new THREE.CapsuleGeometry(r, half * 2, 16, 48),
       scale: new THREE.Vector3(1, 1, 1),
       hw: r,
       hh,
@@ -218,12 +218,12 @@ function bodyShape(t: BossTraits): BodyShape {
     return 1.2 * Math.sin(Math.PI * t01) ** 0.6 * (1 - 0.38 * t01)
   }
   const points: THREE.Vector2[] = []
-  for (let i = 0; i <= 32; i++) {
-    const y = -hh + (2 * hh * i) / 32
+  for (let i = 0; i <= 48; i++) {
+    const y = -hh + (2 * hh * i) / 48
     points.push(new THREE.Vector2(Math.max(0.001, radius(y)), y))
   }
   return {
-    geometry: new THREE.LatheGeometry(points, 40),
+    geometry: new THREE.LatheGeometry(points, 64),
     scale: new THREE.Vector3(1, 1, 1),
     hw: radius(-hh * 0.3),
     hh,
@@ -241,7 +241,7 @@ function bodyShape(t: BossTraits): BodyShape {
 
 /** Caixa de cantos arredondados: um cubo de muitos segmentos "inflado" nos cantos. */
 function roundedBox(w: number, h: number, d: number, r: number): THREE.BufferGeometry {
-  const geo = new THREE.BoxGeometry(w, h, d, 10, 10, 10)
+  const geo = new THREE.BoxGeometry(w, h, d, 16, 16, 16)
   const pos = geo.attributes.position
   const v = new THREE.Vector3()
   const inner = new THREE.Vector3(w / 2 - r, h / 2 - r, d / 2 - r)
@@ -260,7 +260,139 @@ function roundedBox(w: number, h: number, d: number, r: number): THREE.BufferGeo
   return geo
 }
 
-function createBoss(mount: HTMLDivElement, t: BossTraits): BossApi {
+/**
+ * Estampa da pele em tons de cinza. Ela multiplica a cor do corpo, entao sai
+ * sempre num tom mais escuro dela — e o cinza da derrota continua valendo.
+ * A semente desenha as manchas: mesmo chefao, mesma pele em todo aparelho.
+ */
+function skinTexture(pattern: BossPattern, seed: number): THREE.CanvasTexture | null {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const W = canvas.width
+  const H = canvas.height
+  const random = rng(seed * 31 + 7)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, W, H)
+
+  // A textura da a volta no corpo: o que passa da borda reaparece do outro lado.
+  const wrapped = (draw: (dx: number) => void) => {
+    for (const dx of [-W, 0, W]) draw(dx)
+  }
+
+  // Granulado leve em todo chefao: a pele deixa de parecer plastico liso.
+  ctx.fillStyle = 'rgba(0,0,0,0.05)'
+  for (let i = 0; i < 900; i++) ctx.fillRect(random() * W, random() * H, 2, 2)
+
+  ctx.fillStyle = '#b4b4b4'
+  if (pattern === 'manchas') {
+    for (let i = 0; i < 13; i++) {
+      const x = random() * W
+      const y = H * (0.18 + random() * 0.6)
+      const size = 14 + random() * 22
+      // Tres circulos sobrepostos: borda irregular, como mancha de bicho.
+      const lobes = Array.from({ length: 3 }, () => ({
+        x: (random() - 0.5) * size,
+        y: (random() - 0.5) * size * 0.7,
+        r: size * (0.55 + random() * 0.4),
+      }))
+      wrapped((dx) => {
+        ctx.beginPath()
+        for (const lobe of lobes) {
+          ctx.moveTo(x + dx + lobe.x + lobe.r, y + lobe.y)
+          ctx.ellipse(x + dx + lobe.x, y + lobe.y, lobe.r, lobe.r * 0.8, 0, 0, Math.PI * 2)
+        }
+        ctx.fill()
+      })
+    }
+  } else if (pattern === 'listras') {
+    const count = 9
+    for (let i = 0; i < count; i++) {
+      const x = (i / count) * W + (random() - 0.5) * 16
+      const width = 10 + random() * 8
+      const top = H * (0.12 + random() * 0.1)
+      const bottom = H * (0.7 + random() * 0.15)
+      const bend = (random() - 0.5) * 40
+      wrapped((dx) => {
+        // Faixa de tigre: grossa no meio, fina nas pontas, levemente curva.
+        ctx.beginPath()
+        ctx.moveTo(x + dx, top)
+        ctx.quadraticCurveTo(x + dx + bend + width, (top + bottom) / 2, x + dx, bottom)
+        ctx.quadraticCurveTo(x + dx + bend - width, (top + bottom) / 2, x + dx, top)
+        ctx.fill()
+      })
+    }
+  } else if (pattern === 'pintas') {
+    for (let i = 0; i < 46; i++) {
+      const x = random() * W
+      const y = H * (0.15 + random() * 0.7)
+      const r = 5 + random() * 7
+      wrapped((dx) => {
+        ctx.beginPath()
+        ctx.arc(x + dx, y, r, 0, Math.PI * 2)
+        ctx.fill()
+      })
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.wrapS = THREE.RepeatWrapping
+  texture.anisotropy = 4
+  return texture
+}
+
+/** Mancha radial (branco no centro, preto na borda): a sombra suave no chao. */
+function radialTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = 128
+  const ctx = canvas.getContext('2d')
+  if (ctx) {
+    const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64)
+    g.addColorStop(0, '#ffffff')
+    g.addColorStop(0.55, '#a0a0a0')
+    g.addColorStop(1, '#000000')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, 128, 128)
+  }
+  return new THREE.CanvasTexture(canvas)
+}
+
+/**
+ * Brilho de borda (fresnel) em faixa dura, no estilo do sombreamento cartoon:
+ * descola o corpo do fundo escuro do card.
+ */
+function rimMaterial(color: THREE.Color): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { color: { value: color }, strength: { value: 0.55 } },
+    vertexShader: /* glsl */ `
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vNormal = normalize(normalMatrix * normal);
+        vView = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 color;
+      uniform float strength;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        float f = 1.0 - max(dot(normalize(vNormal), normalize(vView)), 0.0);
+        f = smoothstep(0.62, 0.72, f);
+        gl_FragColor = vec4(color * f * strength, 1.0);
+      }`,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    depthWrite: false,
+  })
+}
+
+function createBoss(mount: HTMLDivElement, t: BossTraits, seed: number): BossApi {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   mount.appendChild(renderer.domElement)
@@ -275,12 +407,12 @@ function createBoss(mount: HTMLDivElement, t: BossTraits): BossApi {
   const sun = new THREE.DirectionalLight('#ffffff', 2.4)
   sun.position.set(3, 5, 4)
   scene.add(sun)
-  const rim = new THREE.DirectionalLight('#f97316', 1.2)
-  rim.position.set(-4, 2, -3)
-  scene.add(rim)
+  const backLight = new THREE.DirectionalLight('#f97316', 1.2)
+  backLight.position.set(-4, 2, -3)
+  scene.add(backLight)
 
-  // Tres faixas de luz: o visual "desenho animado".
-  const gradient = new THREE.DataTexture(new Uint8Array([70, 160, 255]), 3, 1, THREE.RedFormat)
+  // Quatro faixas de luz: o visual "desenho animado", com volume mais redondo.
+  const gradient = new THREE.DataTexture(new Uint8Array([60, 125, 195, 255]), 4, 1, THREE.RedFormat)
   gradient.minFilter = THREE.NearestFilter
   gradient.magFilter = THREE.NearestFilter
   gradient.needsUpdate = true
@@ -318,8 +450,15 @@ function createBoss(mount: HTMLDivElement, t: BossTraits): BossApi {
   scene.add(root)
 
   /* corpo */
-  const body = part(shape.geometry, toon(color), 0.035)
+  const skinMat = toon(color)
+  const skin = skinTexture(t.pattern, seed)
+  if (skin) skinMat.map = skin
+  const body = part(shape.geometry, skinMat, 0.035)
   body.scale.copy(shape.scale)
+  const rim = rimMaterial(color.clone().lerp(new THREE.Color('#ffffff'), 0.65))
+  const rimMesh = new THREE.Mesh(shape.geometry, rim)
+  rimMesh.renderOrder = 1
+  body.add(rimMesh)
   boss.add(body)
 
   {
@@ -332,6 +471,9 @@ function createBoss(mount: HTMLDivElement, t: BossTraits): BossApi {
 
   /* olhos */
   const eyes: THREE.Group[] = []
+  const pupils: THREE.Group[] = []
+  // Iris na cor de detalhe; detalhe escuro demais some no preto da pupila.
+  const irisColor = accent.getHSL({ h: 0, s: 0, l: 0 }).l < 0.35 ? '#f59e0b' : accent
   const eyeY = shape.hh * (t.body === 'bloco' ? 0.4 : 0.32)
   const eyeSpots: Array<[number, number, number]> =
     t.eyes === 1
@@ -352,11 +494,16 @@ function createBoss(mount: HTMLDivElement, t: BossTraits): BossApi {
     eye.add(part(new THREE.SphereGeometry(r, 24, 16), toon('#f8fafc'), 0.08))
     const pupil = new THREE.Group()
     pupil.name = 'pupil'
-    const p = new THREE.Mesh(new THREE.SphereGeometry(r * 0.52, 16, 12), flatMat('#0b0f17'))
-    p.position.z = r * 0.62
-    const shine = new THREE.Mesh(new THREE.SphereGeometry(r * 0.16, 8, 8), flatMat('#ffffff'))
-    shine.position.set(r * 0.18, r * 0.2, r * 1.05)
-    pupil.add(p, shine)
+    const iris = new THREE.Mesh(new THREE.SphereGeometry(r * 0.56, 24, 16), flatMat(irisColor))
+    iris.position.z = r * 0.56
+    const p = new THREE.Mesh(new THREE.SphereGeometry(r * 0.3, 16, 12), flatMat('#0b0f17'))
+    p.position.z = r * 0.86
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(r * 0.15, 12, 8), flatMat('#ffffff'))
+    shine.position.set(r * 0.2, r * 0.22, r * 1.12)
+    const glint = new THREE.Mesh(new THREE.SphereGeometry(r * 0.07, 8, 6), flatMat('#ffffff'))
+    glint.position.set(-r * 0.16, -r * 0.14, r * 1.1)
+    pupil.add(iris, p, shine, glint)
+    pupils.push(pupil)
     const cross = new THREE.Group()
     cross.name = 'cross'
     cross.visible = false
@@ -602,9 +749,16 @@ function createBoss(mount: HTMLDivElement, t: BossTraits): BossApi {
   const floats = t.legs === 'flutua'
   const groundY =
     -shape.hh - (t.legs === 'cotocos' ? 0.42 : t.legs === 'aranha' ? 0.55 : 0.5)
+  const shadowTex = radialTexture()
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(shape.hw * 0.95, 32),
-    new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.35 }),
+    new THREE.CircleGeometry(shape.hw * 1.15, 40),
+    new THREE.MeshBasicMaterial({
+      color: '#000000',
+      alphaMap: shadowTex,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    }),
   )
   shadow.rotation.x = -Math.PI / 2
   shadow.position.y = groundY
@@ -685,6 +839,15 @@ function createBoss(mount: HTMLDivElement, t: BossTraits): BossApi {
       } else mat.color.copy(base)
     }
 
+    // O olhar passeia devagar, sem seguir nada: o bicho parece estar vivo.
+    const lookX = Math.sin(time * 0.7) * 0.28 + Math.sin(time * 1.9) * 0.08
+    const lookY = Math.sin(time * 0.45 + 1) * 0.15
+    for (const pupil of pupils) {
+      pupil.rotation.y = lookX * motion * alive
+      pupil.rotation.x = -lookY * motion * alive
+    }
+    rim.uniforms.strength.value = 0.55 * alive + flash * 0.6
+
     // piscar
     if (time > blinkAt) {
       const k = (time - blinkAt) / 0.14
@@ -752,6 +915,8 @@ function createBoss(mount: HTMLDivElement, t: BossTraits): BossApi {
         }
       })
       gradient.dispose()
+      skin?.dispose()
+      shadowTex.dispose()
       renderer.dispose()
       renderer.forceContextLoss()
       renderer.domElement.remove()
