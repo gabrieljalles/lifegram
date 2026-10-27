@@ -16,6 +16,7 @@ import {
   formatVolume,
   formatWeight,
   linearTrend,
+  movingAverage,
   parseLocalDate,
   periodDelta,
   summarizeExercise,
@@ -30,6 +31,9 @@ const PERIODS: Array<{ id: Period; label: string; count: number; unit: string }>
   { id: 'month', label: 'Mês', count: 12, unit: 'mês' },
   { id: 'year', label: 'Ano', count: 5, unit: 'ano' },
 ]
+
+/** Janela da media movel do peso: 14 registros diarios, cerca de duas semanas. */
+const WEIGHT_AVERAGE_PERIOD = 14
 
 export default function Stats() {
   const { sessions, setLogs, bodyWeightLogs, exercises, exerciseById, logsByExercise } = useApp()
@@ -96,15 +100,18 @@ export default function Stats() {
   )
   const finishedSessions = useMemo(() => sessions.filter((s) => s.finished_at).length, [sessions])
 
-  const weightPoints = useMemo(
-    () =>
-      bodyWeightLogs.map((log) => ({
-        label: format(parseLocalDate(log.logged_at), 'dd/MM'),
-        date: parseLocalDate(log.logged_at),
-        weight: log.weight_kg,
-      })),
-    [bodyWeightLogs],
-  )
+  const weightPoints = useMemo(() => {
+    const averages = movingAverage(
+      bodyWeightLogs.map((log) => log.weight_kg),
+      WEIGHT_AVERAGE_PERIOD,
+    )
+    return bodyWeightLogs.map((log, index) => ({
+      label: format(parseLocalDate(log.logged_at), 'dd/MM'),
+      date: parseLocalDate(log.logged_at),
+      weight: log.weight_kg,
+      average: averages[index],
+    }))
+  }, [bodyWeightLogs])
   const weightTrend = useMemo(
     () =>
       linearTrend(
@@ -133,7 +140,10 @@ export default function Stats() {
           )}
         </div>
         <div className="mt-2">
-          <WeightLine data={weightPoints} />
+          <WeightLine
+            data={weightPoints}
+            averageLabel={`Média móvel ${WEIGHT_AVERAGE_PERIOD} (kg)`}
+          />
         </div>
       </Card>
     </Section>

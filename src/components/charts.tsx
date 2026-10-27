@@ -242,9 +242,23 @@ export interface WeightPoint {
   label: string
   date: Date
   weight: number
+  /** Media movel; `null` enquanto ainda nao ha registros suficientes. */
+  average: number | null
 }
 
-export function WeightLine({ data, height = 180 }: { data: WeightPoint[]; height?: number }) {
+/**
+ * Peso do dia e media movel no mesmo eixo: o diario oscila com agua e sal,
+ * a media mostra para onde o peso esta indo de verdade.
+ */
+export function WeightLine({
+  data,
+  averageLabel,
+  height = 180,
+}: {
+  data: WeightPoint[]
+  averageLabel: string
+  height?: number
+}) {
   const renderTooltip = ({ active, payload }: TipProps) => {
     if (!active || !payload?.length) return null
     const point = payload[0].payload as WeightPoint
@@ -253,41 +267,67 @@ export function WeightLine({ data, height = 180 }: { data: WeightPoint[]; height
         title={format(point.date, "d 'de' MMM yyyy", { locale: ptBR })}
         rows={[
           { label: 'Peso', value: `${formatWeight(point.weight)} kg`, color: SERIES.tertiary },
+          ...(point.average !== null
+            ? [
+                {
+                  label: averageLabel,
+                  value: `${formatWeight(point.average)} kg`,
+                  color: SERIES.secondary,
+                },
+              ]
+            : []),
         ]}
       />
     )
   }
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 10, right: 12, bottom: 0, left: -20 }}>
-        <CartesianGrid stroke={GRID} vertical={false} />
-        <XAxis
-          dataKey="label"
-          tick={axisTick}
-          tickLine={false}
-          axisLine={{ stroke: GRID }}
-          minTickGap={24}
-        />
-        <YAxis
-          tick={axisTick}
-          tickLine={false}
-          axisLine={false}
-          width={44}
-          domain={['dataMin - 2', 'dataMax + 2']}
-          tickFormatter={(value: number) => `${Math.round(value)}`}
-        />
-        <Tooltip cursor={{ stroke: GRID, strokeWidth: 1 }} content={renderTooltip} />
-        <Line
-          type="monotone"
-          dataKey="weight"
-          stroke={SERIES.tertiary}
-          strokeWidth={2}
-          dot={{ r: 3, fill: SERIES.tertiary, strokeWidth: 0 }}
-          activeDot={{ r: 5, stroke: '#0b0f17', strokeWidth: 2 }}
-        />
-      </LineChart>
-    </ResponsiveContainer>
+    <div>
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={data} margin={{ top: 10, right: 12, bottom: 0, left: -20 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis
+            dataKey="label"
+            tick={axisTick}
+            tickLine={false}
+            axisLine={{ stroke: GRID }}
+            minTickGap={24}
+          />
+          <YAxis
+            tick={axisTick}
+            tickLine={false}
+            axisLine={false}
+            width={44}
+            domain={['dataMin - 2', 'dataMax + 2']}
+            tickFormatter={(value: number) => `${Math.round(value)}`}
+          />
+          <Tooltip cursor={{ stroke: GRID, strokeWidth: 1 }} content={renderTooltip} />
+          <Line
+            type="monotone"
+            dataKey="weight"
+            stroke={SERIES.tertiary}
+            strokeWidth={2}
+            dot={{ r: 3, fill: SERIES.tertiary, strokeWidth: 0 }}
+            activeDot={{ r: 5, stroke: '#0b0f17', strokeWidth: 2 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="average"
+            stroke={SERIES.secondary}
+            strokeWidth={2}
+            strokeDasharray="5 3"
+            dot={false}
+            activeDot={{ r: 5, stroke: '#0b0f17', strokeWidth: 2 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+      <Legend
+        items={[
+          { label: 'Peso (kg)', color: SERIES.tertiary },
+          { label: averageLabel, color: SERIES.secondary, dashed: true },
+        ]}
+      />
+    </div>
   )
 }
 

@@ -12,6 +12,7 @@ import {
   scheduleOf,
   formatClock,
   linearTrend,
+  movingAverage,
   parseLocalDate,
   periodDelta,
   setLabel,
@@ -119,6 +120,16 @@ describe('linearTrend', () => {
       { date: new Date('2026-03-02'), value: 90 },
     ])
     expect(trend.perMonth).toBeLessThan(0)
+  })
+})
+
+describe('movingAverage', () => {
+  it('só começa quando a janela está cheia', () => {
+    expect(movingAverage([1, 2, 3, 4, 5], 3)).toEqual([null, null, 2, 3, 4])
+  })
+
+  it('menos pontos que o período não gera média', () => {
+    expect(movingAverage([80, 81], 14)).toEqual([null, null])
   })
 })
 

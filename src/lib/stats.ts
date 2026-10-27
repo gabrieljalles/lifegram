@@ -50,6 +50,20 @@ export interface Trend {
 }
 
 /**
+ * Media movel simples dos ultimos `period` valores. Os primeiros `period - 1`
+ * pontos ficam `null`: sem janela cheia a media ainda nao significa nada, e o
+ * grafico simplesmente nao desenha a linha ali.
+ */
+export function movingAverage(values: number[], period: number): Array<number | null> {
+  let sum = 0
+  return values.map((value, index) => {
+    sum += value
+    if (index >= period) sum -= values[index - period]
+    return index >= period - 1 ? sum / period : null
+  })
+}
+
+/**
  * Regressao linear simples de y sobre o tempo. `x` vem em dias desde o
  * primeiro ponto, entao a inclinacao e "unidade por dia" e multiplicamos por
  * 30 para virar "por mes".
@@ -693,8 +707,7 @@ const bucketStart = (date: Date, period: Period): Date => {
 
 /**
  * Chave da semana (segunda a domingo) que a data pertence, no formato
- * YYYY-MM-DD. Duas datas na mesma semana sempre devolvem a mesma chave —
- * base do lembrete semanal de peso corporal.
+ * YYYY-MM-DD. Duas datas na mesma semana sempre devolvem a mesma chave.
  */
 export const weekKeyOf = (date: Date): string =>
   format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd')

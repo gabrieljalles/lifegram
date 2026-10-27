@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
+import BodyWeightPrompt from '../components/BodyWeightPrompt'
 import PRCelebration from '../components/PRCelebration'
 import RestTimer from '../components/RestTimer'
 import { Button, ExercisePhoto, ProgressionCard } from '../components/ui'
@@ -52,7 +53,12 @@ const WEIGHT_BIG_STEP = 5
 
 export default function ActiveWorkout() {
   const navigate = useNavigate()
-  const { active, exerciseById, logsByExercise, sessions, setActive, reload } = useApp()
+  const { active, exerciseById, logsByExercise, sessions, bodyWeightLogs, setActive, reload } =
+    useApp()
+  /** Peso do dia: pergunta ao abrir o treino ate registrar (ou pular) hoje. */
+  const [weightSkipped, setWeightSkipped] = useState(false)
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const loggedWeightToday = bodyWeightLogs.some((log) => log.logged_at === today)
 
   const [weight, setWeight] = useState(0)
   const [reps, setReps] = useState(0)
@@ -145,18 +151,20 @@ export default function ActiveWorkout() {
 
   /**
    * Dupla progressao por faixa de reps: subir ao bater o teto em todas as
-   * series, baixar ao cair abaixo do piso, ou sugerir um deload se o 1RM
-   * estimado estagnou. Nunca aplica sozinho — so aparece como sugestao, uma
-   * vez, e some assim que voce ajusta a carga na direcao certa.
+   * series ou baixar ao cair abaixo do piso. Nunca aplica sozinho — so aparece
+   * como sugestao, uma vez, e some assim que voce ajusta a carga na direcao
+   * certa. O aviso de plato (deload) fica de fora do treino: a tendencia do
+   * 1RM nem sempre reflete a realidade.
    */
   const suggestion = useMemo(() => {
     if (!exercise || priorLogs.length === 0) return null
-    return suggestProgression(priorLogs, {
+    const result = suggestProgression(priorLogs, {
       rep_floor: exercise.rep_floor ?? DEFAULT_REP_FLOOR,
       rep_ceiling: exercise.rep_ceiling ?? DEFAULT_REP_CEILING,
       weight_increment: exercise.weight_increment ?? DEFAULT_WEIGHT_INCREMENT,
       muscle_group: exercise.muscle_group,
     })
+    return result?.action === 'deload' ? null : result
   }, [
     exercise?.rep_floor,
     exercise?.rep_ceiling,
@@ -545,6 +553,14 @@ export default function ActiveWorkout() {
               await setActive(updated)
             })()
           }
+        />
+      )}
+
+      {!loggedWeightToday && !weightSkipped && (
+        <BodyWeightPrompt
+          lastLog={bodyWeightLogs[bodyWeightLogs.length - 1] ?? null}
+          onSaved={reload}
+          onSkip={() => setWeightSkipped(true)}
         />
       )}
 
