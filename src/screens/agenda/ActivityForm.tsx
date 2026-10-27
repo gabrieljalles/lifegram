@@ -1,9 +1,13 @@
 import { useState } from 'react'
+import { format } from 'date-fns'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, EmptyState, Header, Section, WeekdayPicker } from '../../components/ui'
 import { ACTIVITY_ICONS, ACTIVITY_XP, COMBO_AT, dayKey, describeDays } from '../../lib/activities'
 import { archiveActivity, saveActivity } from '../../lib/activityActions'
 import { templateUrl } from '../../lib/gcal'
+import { TRAVEL_OPTIONS, formatTravel, reminderPlan } from '../../lib/reminders'
+import { requestNotificationPermission } from '../../lib/timer'
+import { reminderChannel, type ReminderChannel } from '../../lib/useActivityReminders'
 import { useApp } from '../../lib/store'
 import type { Activity, ActivityKind, Weekday } from '../../lib/types'
 
@@ -33,6 +37,8 @@ export default function ActivityForm() {
   const [timed, setTimed] = useState(Boolean(existing?.time))
   const [time, setTime] = useState(existing?.time ?? '07:00')
   const [duration, setDuration] = useState(existing?.duration_minutes ?? 30)
+  const [travel, setTravel] = useState(existing?.travel_minutes ?? 0)
+  const [channel, setChannel] = useState<ReminderChannel>(reminderChannel)
   const [saving, setSaving] = useState(false)
 
   if (activityId && !existing) {
@@ -59,6 +65,7 @@ export default function ActivityForm() {
           date: kind === 'esporadica' ? date : null,
           time: timed ? time : null,
           duration_minutes: duration,
+          travel_minutes: timed ? travel : 0,
         },
         existing,
       )
@@ -215,6 +222,39 @@ export default function ActivityForm() {
         </Card>
       </Section>
 
+      {timed && (
+        <Section title="Aviso">
+          <Card className="p-4">
+            <p className="text-sm font-semibold">Quanto tempo leva para chegar lá?</p>
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {TRAVEL_OPTIONS.map((minutes) => (
+                <button
+                  key={minutes}
+                  type="button"
+                  onClick={() => setTravel(minutes)}
+                  aria-pressed={travel === minutes}
+                  className={`tnum rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
+                    travel === minutes
+                      ? 'border-brand-400 bg-brand-600/25 text-ink-50'
+                      : 'border-ink-600 text-ink-300 active:bg-ink-800'
+                  }`}
+                >
+                  {minutes === 0 ? '🏠 Já estou lá' : `🚶 ${formatTravel(minutes)}`}
+                </button>
+              ))}
+            </div>
+            <ReminderTimeline time={time} travel={travel} />
+            <ReminderDelivery
+              channel={channel}
+              onAsk={async () => {
+                await requestNotificationPermission()
+                setChannel(reminderChannel())
+              }}
+            />
+          </Card>
+        </Section>
+      )}
+
       <Section title="Recompensa">
         <Card className="flex items-center gap-3 p-4">
           <span className="text-2xl" aria-hidden="true">
@@ -253,5 +293,69 @@ export default function ActivityForm() {
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * Linha do tempo do aviso: mostra na hora, com os horarios reais, quando o
+ * celular vai tocar, quando sair e quando chegar — sem precisar fazer conta.
+ */
+function ReminderTimeline({ time, travel }: { time: string; travel: number }) {
+  const plan = reminderPlan(
+    {
+      kind: 'esporadica',
+      date: dayKey(new Date()),
+      time,
+      travel_minutes: travel,
+    } as Activity,
+    new Date(),
+  )
+  if (!plan) return null
+  const steps = [
+    { icon: '🔔', at: plan.notifyAt, label: 'Aviso' },
+    ...(plan.leaveAt ? [{ icon: '🚶', at: plan.leaveAt, label: 'Sair' }] : []),
+    { icon: '📍', at: plan.startAt, label: plan.leaveAt ? 'Chegar' : 'Começa' },
+  ]
+  return (
+    <ol className="mt-4 flex items-start" aria-label="Linha do tempo do aviso">
+      {steps.map((step, index) => (
+        <li key={step.label} className="relative flex flex-1 flex-col items-center text-center">
+          {index > 0 && (
+            <span className="absolute right-1/2 top-4 h-0.5 w-full -translate-y-1/2 bg-ink-700" aria-hidden="true" />
+          )}
+          <span className="relative flex h-8 w-8 items-center justify-center rounded-full border border-ink-600 bg-ink-850 text-base">
+            {step.icon}
+          </span>
+          <span className="tnum mt-1 text-sm font-black">{format(step.at, 'HH:mm')}</span>
+          <span className="text-[11px] text-ink-400">{step.label}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/** Diz quem vai entregar o aviso, e o que falta para ele chegar. */
+function ReminderDelivery({ channel, onAsk }: { channel: ReminderChannel; onAsk: () => void }) {
+  if (channel === 'ask') {
+    return (
+      <Button className="mt-4 w-full" variant="primary" onClick={onAsk}>
+        🔔 Ativar avisos
+      </Button>
+    )
+  }
+  const text = {
+    google: '✅ O Google Agenda avisa no celular, mesmo com o app fechado.',
+    app: '🔔 O app avisa. Com ele fechado, o celular pode segurar o aviso — conecte o Google Agenda na Agenda para não depender disso.',
+    blocked:
+      '🔕 As notificações estão bloqueadas neste navegador. Libere nas permissões do site, ou conecte o Google Agenda.',
+  }[channel]
+  return (
+    <p
+      className={`mt-4 text-[11px] leading-relaxed ${
+        channel === 'google' ? 'text-go-400' : channel === 'blocked' ? 'text-fire-400' : 'text-ink-400'
+      }`}
+    >
+      {text}
+    </p>
   )
 }

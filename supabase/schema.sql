@@ -309,6 +309,8 @@ create table if not exists public.activities (
   -- Horario HH:mm; null = qualquer hora do dia.
   time             text,
   duration_minutes integer not null default 30 check (duration_minutes > 0),
+  -- Deslocamento ate o lugar: o aviso cai antes da hora de sair.
+  travel_minutes   integer not null default 0 check (travel_minutes >= 0),
   -- Primeiro dia valido da recorrente: o passado nao cobra.
   starts_on        date not null,
   -- Evento espelhado no Google Agenda.

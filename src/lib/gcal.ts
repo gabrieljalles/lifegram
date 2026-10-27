@@ -1,5 +1,6 @@
 import { addDays, addMinutes, format, parseISO } from 'date-fns'
 import { dayKey, occursOn } from './activities'
+import { reminderOffset } from './reminders'
 import { metaGet, metaSet, putActivity } from './db'
 import type { Activity, Weekday } from './types'
 import { nowISO } from './types'
@@ -66,8 +67,12 @@ export const isGcalConfigured = (): boolean => gcalClientId() !== null
 
 /** Token guardado por aparelho, com validade (o do Google dura ~1 h). */
 const TOKEN_KEY = 'gcal:token'
-/** Versao (updated_at) de cada atividade ja enviada: so reenvia o que mudou. */
-const SYNCED_KEY = 'gcal:synced'
+/**
+ * Versao (updated_at) de cada atividade ja enviada: so reenvia o que mudou.
+ * O sufixo muda quando o formato do evento muda (v2: lembrete com
+ * deslocamento), forcando um reenvio de tudo.
+ */
+const SYNCED_KEY = 'gcal:synced:v2'
 /** Ultimos eventos lidos do Google: a Agenda mostra mesmo offline ou sem login. */
 const EVENTS_KEY = 'gcal:events'
 
@@ -126,6 +131,11 @@ export function toEvent(activity: Activity) {
     description: 'Missão do Lifegram. Marque como feita no app para ganhar XP.',
     ...span(activity, day),
     ...(rrule ? { recurrence: [rrule] } : {}),
+    // O celular avisa pelo Google mesmo com o app fechado: na hora de sair
+    // (deslocamento + folga), nao na hora marcada.
+    ...(activity.time
+      ? { reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: reminderOffset(activity) }] } }
+      : {}),
     extendedProperties: { private: { lifegram_id: activity.id } },
   }
 }

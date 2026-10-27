@@ -42,6 +42,8 @@ export default defineConfig({
         // hora, mesmo com a aba ja aberta.
         skipWaiting: true,
         clientsClaim: true,
+        // Toque na notificacao abre o app na tela certa (ex.: a agenda).
+        importScripts: ['notification-click.js'],
       },
     }),
   ],

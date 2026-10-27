@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { addMinutes, format } from 'date-fns'
 import { COMBO_AT, dayKey, relativeLabel, xpOf, type Occurrence } from '../lib/activities'
+import { travelOf } from '../lib/reminders'
 
 /**
  * Pecas visuais da agenda: a linha de missao com o check grande e o card da
@@ -149,7 +151,11 @@ export function NextActivityCard({
   const [burst, setBurst] = useState(0)
   const isToday = occ.day === dayKey(now)
   const xp = xpOf(occ, streak)
-  const soon = isToday && occ.at && occ.at.getTime() - now.getTime() < 15 * 60_000
+  const travel = travelOf(occ.activity)
+  const leaveAt = occ.at && travel > 0 ? addMinutes(occ.at, -travel) : null
+  // "Em cima da hora" conta a partir da hora de sair, nao da hora marcada.
+  const soon =
+    isToday && occ.at && occ.at.getTime() - now.getTime() < (15 + travel) * 60_000
 
   return (
     <div
@@ -185,6 +191,7 @@ export function NextActivityCard({
           <span className="mt-0.5 block truncate text-lg font-black">{occ.activity.title}</span>
           <span className={`block text-xs font-semibold ${occ.late ? 'text-fire-400' : 'text-ink-300'}`}>
             {relativeLabel(occ, now)}
+            {leaveAt && !occ.late ? ` · 🚶 saia às ${format(leaveAt, 'HH:mm')}` : ''}
             {isToday && todayLeft > 1 ? ` · mais ${todayLeft - 1} hoje` : ''}
           </span>
         </span>

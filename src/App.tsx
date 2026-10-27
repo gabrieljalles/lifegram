@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useApp } from './lib/store'
+import { useActivityReminders } from './lib/useActivityReminders'
 import Today from './screens/Today'
 import Home from './screens/Home'
 import ActiveWorkout from './screens/ActiveWorkout'
@@ -121,8 +122,9 @@ function BottomNav() {
 }
 
 export default function App() {
-  const { ready } = useApp()
+  const { ready, activities, activityLogs } = useApp()
   const { pathname } = useLocation()
+  useActivityReminders(activities, activityLogs)
   const immersive = IMMERSIVE.some((prefix) => pathname.startsWith(prefix))
 
   if (!ready) {

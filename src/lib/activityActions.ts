@@ -11,7 +11,7 @@ import { newId, nowISO, type Activity, type ID } from './types'
 
 export type ActivityDraft = Pick<
   Activity,
-  'title' | 'icon' | 'kind' | 'days' | 'date' | 'time' | 'duration_minutes'
+  'title' | 'icon' | 'kind' | 'days' | 'date' | 'time' | 'duration_minutes' | 'travel_minutes'
 >
 
 function mirror() {

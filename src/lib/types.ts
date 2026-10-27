@@ -224,7 +224,7 @@ export interface ActiveItem {
   segments: ExerciseSegment[]
 }
 
-/** Peso corporal, registrado no maximo uma vez por semana (lembrete no Inicio). */
+/** Peso corporal, perguntado uma vez por dia ao iniciar o treino. */
 export interface BodyWeightLog {
   id: ID
   user_id: string | null
@@ -439,6 +439,12 @@ export interface Activity {
   time: string | null
   /** Duracao em minutos, usada no evento do Google Agenda. */
   duration_minutes: number
+  /**
+   * Minutos de deslocamento ate o lugar; 0 = nao precisa sair. O aviso cai
+   * antes da hora de sair, nao da hora marcada. Linhas antigas nao tem o
+   * campo: leia sempre por `travelOf`.
+   */
+  travel_minutes?: number
   /** Primeiro dia valido da recorrente (YYYY-MM-DD): o passado nao cobra. */
   starts_on: string
   /** Evento correspondente no Google Agenda, quando ja sincronizado. */
