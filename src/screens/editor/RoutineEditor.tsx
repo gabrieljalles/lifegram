@@ -26,6 +26,7 @@ import {
   type RoutineExercise,
   type Weekday,
 } from '../../lib/types'
+import { confirmDialog } from '../../lib/dialog'
 
 export default function RoutineEditor() {
   const { routineId } = useParams()
@@ -124,7 +125,15 @@ export default function RoutineEditor() {
   }
 
   const archive = async () => {
-    if (!confirm(`Remover o treino "${routine.name}"? O histórico das sessões é mantido.`)) return
+    if (
+      !(await confirmDialog({
+        title: `Remover o treino "${routine.name}"?`,
+        message: 'O histórico das sessões é mantido.',
+        confirmLabel: 'Remover',
+        danger: true,
+      }))
+    )
+      return
     await putRoutine({ ...routine, archived: true, updated_at: nowISO() })
     await reload()
     navigate('/treinos')

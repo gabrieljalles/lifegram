@@ -10,6 +10,7 @@ import { requestNotificationPermission } from '../../lib/timer'
 import { reminderChannel, type ReminderChannel } from '../../lib/useActivityReminders'
 import { useApp } from '../../lib/store'
 import type { Activity, ActivityKind, Weekday } from '../../lib/types'
+import { confirmDialog } from '../../lib/dialog'
 
 const PRESETS: Array<{ label: string; days: Weekday[] }> = [
   { label: 'Todo dia', days: [0, 1, 2, 3, 4, 5, 6] },
@@ -77,7 +78,15 @@ export default function ActivityForm() {
   }
 
   const archive = async (activity: Activity) => {
-    if (!confirm(`Remover "${activity.title}"? O XP que você já ganhou com ela continua.`)) return
+    if (
+      !(await confirmDialog({
+        title: `Remover "${activity.title}"?`,
+        message: 'O XP que você já ganhou com ela continua.',
+        confirmLabel: 'Remover',
+        danger: true,
+      }))
+    )
+      return
     await archiveActivity(activity)
     await reload()
     navigate('/agenda')

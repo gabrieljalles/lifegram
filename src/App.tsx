@@ -11,6 +11,7 @@ import RoutineEditor from './screens/editor/RoutineEditor'
 import ExerciseList from './screens/editor/ExerciseList'
 import ExerciseEditor from './screens/editor/ExerciseEditor'
 import Settings from './screens/Settings'
+import DialogHost from './components/DialogHost'
 
 // Os graficos pesam mais que o resto do app somado: so carregam quando
 // o usuario abre o progresso, nunca durante o treino.
@@ -195,6 +196,7 @@ export default function App() {
         </Suspense>
       </main>
       <BottomNav />
+      <DialogHost />
     </div>
   )
 }

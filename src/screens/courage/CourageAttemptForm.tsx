@@ -19,6 +19,7 @@ import {
   type CouragePeople,
   type CouragePlace,
 } from '../../lib/types'
+import { confirmDialog } from '../../lib/dialog'
 
 const PLACE_OPTIONS = COURAGE_PLACES.map((value) => ({ value, label: COURAGE_PLACE_LABEL[value] }))
 const PEOPLE_OPTIONS = COURAGE_PEOPLE.map((value) => ({
@@ -124,7 +125,15 @@ export default function CourageAttemptForm() {
 
   const discard = async () => {
     if (!existing || busy) return
-    if (!confirm('Excluir este registro? Ele sai das médias e dos gráficos.')) return
+    if (
+      !(await confirmDialog({
+        title: 'Excluir este registro?',
+        message: 'Ele sai das médias e dos gráficos.',
+        confirmLabel: 'Excluir',
+        danger: true,
+      }))
+    )
+      return
     setBusy(true)
     try {
       await removeAttempt(existing.id)

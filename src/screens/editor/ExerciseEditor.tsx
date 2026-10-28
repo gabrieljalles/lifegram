@@ -27,6 +27,7 @@ import {
   type ExerciseSegment,
   type MuscleGroup,
 } from '../../lib/types'
+import { alertDialog, confirmDialog } from '../../lib/dialog'
 
 const REST_PRESETS = [45, 60, 90, 120, 180]
 
@@ -154,7 +155,7 @@ export default function ExerciseEditor() {
   const save = async () => {
     const trimmed = name.trim()
     if (!trimmed) {
-      alert('Dê um nome ao exercício.')
+      await alertDialog('Dê um nome ao exercício.')
       return
     }
     setSaving(true)
@@ -185,7 +186,15 @@ export default function ExerciseEditor() {
 
   const archive = async () => {
     if (!existing) return
-    if (!confirm(`Arquivar "${existing.name}"? O histórico continua nas estatísticas.`)) return
+    if (
+      !(await confirmDialog({
+        title: `Arquivar "${existing.name}"?`,
+        message: 'O histórico continua nas estatísticas.',
+        confirmLabel: 'Arquivar',
+        danger: true,
+      }))
+    )
+      return
     await putExercise({ ...existing, archived: true, updated_at: nowISO() })
     await reload()
     navigate('/exercicios')

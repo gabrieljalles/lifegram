@@ -4,6 +4,7 @@ import { Button, Card, Header, Section } from '../../components/ui'
 import { Field, ScorePicker, inputClass } from '../../components/courage-ui'
 import { archiveGoal, changeScore, createGoal, updateGoal } from '../../lib/courageActions'
 import { useApp } from '../../lib/store'
+import { confirmDialog } from '../../lib/dialog'
 
 /**
  * Cadastro e edicao de um degrau. A nota inicial e um chute seu — e exatamente
@@ -62,7 +63,15 @@ export default function CourageGoalForm() {
 
   const remove = async () => {
     if (!editing) return
-    if (!confirm(`Arquivar "${editing.name}"? O histórico de tentativas é mantido.`)) return
+    if (
+      !(await confirmDialog({
+        title: `Arquivar "${editing.name}"?`,
+        message: 'O histórico de tentativas é mantido.',
+        confirmLabel: 'Arquivar',
+        danger: true,
+      }))
+    )
+      return
     await archiveGoal(editing.id)
     await reload()
     navigate('/coragem', { replace: true })

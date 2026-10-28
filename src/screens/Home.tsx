@@ -16,6 +16,7 @@ import {
 import { useApp } from '../lib/store'
 import { seedStarterData, startWorkout } from '../lib/workout'
 import { WEEKDAYS, type Routine, type Weekday } from '../lib/types'
+import { alertDialog } from '../lib/dialog'
 
 export default function Home() {
   const navigate = useNavigate()
@@ -82,7 +83,10 @@ export default function Home() {
       await reload()
       navigate('/treino')
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível iniciar o treino.')
+      await alertDialog(
+        'Não foi possível iniciar o treino',
+        error instanceof Error ? error.message : undefined,
+      )
     } finally {
       setBusy(false)
     }

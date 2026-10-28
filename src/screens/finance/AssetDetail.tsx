@@ -32,6 +32,7 @@ import {
 } from '../../lib/invest'
 import { useApp } from '../../lib/store'
 import { useInvestments } from '../../lib/useInvestments'
+import { confirmDialog } from '../../lib/dialog'
 
 const input =
   'w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-3 text-sm outline-none focus:border-brand-500'
@@ -89,7 +90,15 @@ export default function AssetDetail() {
             key={r.sale.id}
             result={r}
             onDelete={async () => {
-              if (!confirm('Apagar esta venda? O imposto do mês é recalculado.')) return
+              if (
+                !(await confirmDialog({
+                  title: 'Apagar esta venda?',
+                  message: 'O imposto do mês é recalculado.',
+                  confirmLabel: 'Apagar',
+                  danger: true,
+                }))
+              )
+                return
               await deleteSale(r.sale)
               await reload()
             }}
@@ -398,7 +407,15 @@ export default function AssetDetail() {
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!confirm('Apagar esta compra?')) return
+                      if (
+                        !(await confirmDialog({
+                          title: 'Apagar esta compra?',
+                          message: `${formatQuantity(r.buy.quantity)} × ${formatBRL(r.buy.price)} em ${format(parseISO(r.buy.bought_on), 'dd/MM/yyyy')}. A posição, o imposto e a Selic são recalculados.`,
+                          confirmLabel: 'Apagar',
+                          danger: true,
+                        }))
+                      )
+                        return
                       await deleteBuy(r.buy)
                       await reload()
                     }}

@@ -37,6 +37,7 @@ import {
   skipRest,
   undoSet,
 } from '../lib/workout'
+import { confirmDialog } from '../lib/dialog'
 
 /**
  * Os graficos do historico so baixam quando a tela do treino pede — o Recharts
@@ -356,9 +357,12 @@ export default function ActiveWorkout() {
                 // Adiado nao trava a saida: so avisa o que fica para tras.
                 if (
                   pendingPostponed.length > 0 &&
-                  !confirm(
-                    `Ainda falta ${pendingPostponed.join(', ')}. Encerrar o treino mesmo assim?`,
-                  )
+                  !(await confirmDialog({
+                    title: 'Encerrar o treino?',
+                    message: `Ainda falta ${pendingPostponed.join(', ')}.`,
+                    confirmLabel: 'Encerrar',
+                    danger: true,
+                  }))
                 ) {
                   return
                 }
