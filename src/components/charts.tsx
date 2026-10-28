@@ -1,7 +1,9 @@
 import {
+  Area,
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Line,
   LineChart,
   ReferenceLine,
@@ -614,8 +616,10 @@ export interface CapitalChartPoint {
   bought?: number
 }
 
-/** Ponto vermelho do valor de hoje: o fim da linha da carteira, sempre visivel. */
-const NOW_DOT = '#ef4444'
+/** Ponto do valor de hoje, no fim da linha da carteira: branco (neutro) abaixo da meta... */
+const NOW_DOT = '#f8fafc'
+/** ...e verde acima dela (a mesma cor da linha da Selic + premio). */
+const NOW_DOT_WIN = SERIES.tertiary
 
 /**
  * Carteira contra a Selic no mesmo eixo de reais: a distancia entre as duas
@@ -652,33 +656,20 @@ export function CapitalLines({
   const hasPure = premiumLabel !== undefined && rows.some((p) => p.selicPure !== undefined)
   const metaName = hasPure ? premiumLabel : 'Selic'
   const last = rows.length - 1
-  // Marca branca nos dias de compra; ponto vermelho no valor de hoje.
-  const renderDot = (props: {
-    cx?: number
-    cy?: number
-    index?: number
-    payload?: CapitalChartPoint
-  }) => {
-    const { cx, cy, index, payload } = props
+  // Hoje acima da meta (a linha verde com premio; a Selic sem premio): o
+  // ponto de hoje fica verde e a area da carteira se pinta de verde.
+  const winning = last >= 0 && rows[last].value >= rows[last].selic
+  const nowColor = winning ? NOW_DOT_WIN : NOW_DOT
+  // So o ponto do valor de hoje (branco ou verde); o resto da linha fica limpo.
+  const renderDot = (props: { cx?: number; cy?: number; index?: number }) => {
+    const { cx, cy, index } = props
     if (cx === undefined || cy === undefined) return <g key={`d-${index}`} />
     if (index === last)
       return (
         <g key={`d-${index}`}>
-          <circle cx={cx} cy={cy} r={9} fill={NOW_DOT} opacity={0.25} />
-          <circle cx={cx} cy={cy} r={5} fill={NOW_DOT} stroke="#0b0f17" strokeWidth={2} />
+          <circle cx={cx} cy={cy} r={9} fill={nowColor} opacity={0.25} />
+          <circle cx={cx} cy={cy} r={5} fill={nowColor} stroke="#0b0f17" strokeWidth={2} />
         </g>
-      )
-    if (payload?.bought)
-      return (
-        <circle
-          key={`d-${index}`}
-          cx={cx}
-          cy={cy}
-          r={4}
-          fill="#0b0f17"
-          stroke="#f8fafc"
-          strokeWidth={2}
-        />
       )
     return <g key={`d-${index}`} />
   }
@@ -720,7 +711,7 @@ export function CapitalLines({
   return (
     <div>
       <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={rows} margin={{ top: 10, right: 12, bottom: 0, left: 0 }}>
+        <ComposedChart data={rows} margin={{ top: 10, right: 12, bottom: 0, left: 0 }}>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis
             dataKey="label"
@@ -739,6 +730,19 @@ export function CapitalLines({
             tickFormatter={(value: number) => formatAxis(value)}
           />
           <Tooltip cursor={{ stroke: GRID, strokeWidth: 1 }} content={renderTooltip} />
+          {winning && (
+            <Area
+              type="linear"
+              dataKey="value"
+              stroke="none"
+              fill={NOW_DOT_WIN}
+              fillOpacity={0.18}
+              baseValue={gain ? 0 : 'dataMin'}
+              isAnimationActive={false}
+              activeDot={false}
+              tooltipType="none"
+            />
+          )}
           {!gain && (
             <Line
               type="stepAfter"
@@ -777,7 +781,7 @@ export function CapitalLines({
             dot={renderDot}
             activeDot={{ r: 5, stroke: '#0b0f17', strokeWidth: 2 }}
           />
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
       <Legend
         items={[
@@ -803,13 +807,9 @@ export function CapitalLines({
         <span>
           <span
             aria-hidden="true"
-            className="mr-1 inline-block h-2 w-2 rounded-full border-2 border-slate-50"
+            className={`mr-1 inline-block h-2 w-2 rounded-full ${winning ? 'bg-go-500' : 'bg-slate-50'}`}
           />
-          compra
-        </span>
-        <span>
-          <span aria-hidden="true" className="mr-1 inline-block h-2 w-2 rounded-full bg-red-500" />
-          valor de hoje
+          valor de hoje {winning ? '(acima da meta)' : '(abaixo da meta)'}
         </span>
       </p>
     </div>
