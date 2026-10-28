@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import PRCelebration from '../components/PRCelebration'
+import SellSignalCard from '../components/SellSignalCard'
 import { LevelCard, MissionCard, StatPill } from '../components/game'
 import { NextActivityCard } from '../components/agenda-ui'
 import { useNow } from '../lib/useNow'
@@ -15,6 +16,7 @@ import { useApp } from '../lib/store'
 import { vibrate } from '../lib/timer'
 import { useGame } from '../lib/useGame'
 import { startWorkout } from '../lib/workout'
+import { alertDialog } from '../lib/dialog'
 
 // three.js pesa: o chefao 3D so baixa quando a tela Hoje aparece.
 const Boss3D = lazy(() => import('../components/Boss3D'))
@@ -116,7 +118,10 @@ export default function Today() {
       await reload()
       navigate('/treino')
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível iniciar o treino.')
+      await alertDialog(
+        'Não foi possível iniciar o treino',
+        error instanceof Error ? error.message : undefined,
+      )
     } finally {
       setBusy(false)
     }
@@ -184,6 +189,9 @@ export default function Today() {
           </button>
         </div>
       )}
+
+      {/* Financeiro: ativos que ja passaram da Selic + premio. */}
+      <SellSignalCard />
 
       {/* Agenda: a proxima coisa marcada, com o check a um toque. */}
       <div className="px-4 pt-4">

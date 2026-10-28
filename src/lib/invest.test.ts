@@ -9,6 +9,7 @@ import {
   previewSale,
   priceOn,
   selicIndex,
+  sellSignals,
   type PortfolioInput,
   type SelicRates,
 } from './invest'
@@ -337,5 +338,25 @@ describe('parseDecimal', () => {
     expect(parseDecimal('1.234,56')).toBe(1234.56)
     expect(parseDecimal('34.2')).toBe(34.2)
     expect(parseDecimal('0,005')).toBe(0.005)
+  })
+})
+
+describe('sellSignals', () => {
+  const buys = [buy('PETR4', 10, 100, '2026-08-01'), buy('VALE3', 10, 100, '2026-10-20')]
+  const quotes = [quote('PETR4', 150, '2026-10-28'), quote('VALE3', 150, '2026-10-28')]
+  const withPremium = { ...settings, selicMultiplier: 1.2 }
+
+  it('só com prêmio, só quem bate a meta e já maturou', () => {
+    const { positions } = portfolio(
+      input({
+        buys,
+        quotes,
+        today: '2026-10-28',
+        index: selicIndex(rates, 1.2),
+        settings: withPremium,
+      }),
+    )
+    expect(sellSignals(positions, withPremium).map((p) => p.asset)).toEqual(['PETR4'])
+    expect(sellSignals(positions, settings)).toEqual([])
   })
 })

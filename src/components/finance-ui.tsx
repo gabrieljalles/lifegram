@@ -114,21 +114,35 @@ export function DirectionOnly({
   )
 }
 
+/**
+ * Fundo e borda do card pelo resultado liquido: azul empatou ou passou a
+ * Selic; verde neon empatou ou passou a Selic + premio (so com premio ligado).
+ */
+function cardTone(p: Position, premium: boolean): string {
+  if (premium && p.beat)
+    return 'border-[#39ff88] bg-[#39ff88]/10 shadow-[0_0_18px_rgba(57,255,136,0.35)] active:bg-[#39ff88]/15'
+  if (p.netValue >= p.selicNetPure) return 'border-[#3987e5] bg-[#3987e5]/12 active:bg-[#3987e5]/20'
+  return 'border-ink-700 bg-ink-850 active:bg-ink-800'
+}
+
 export function PositionCard({
   position,
   onClick,
   label = 'Selic',
+  premium = false,
 }: {
   position: Position
   onClick: () => void
   label?: string
+  /** Ha premio de risco configurado (a meta e a Selic + premio). */
+  premium?: boolean
 }) {
   const p = position
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-2xl border border-ink-700 bg-ink-850 p-3.5 text-left active:bg-ink-800"
+      className={`w-full rounded-2xl border p-3.5 text-left ${cardTone(p, premium)}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

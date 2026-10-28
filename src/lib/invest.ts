@@ -736,6 +736,17 @@ export function holdingTime(since: string, today: string): { label: string; tota
   return { label, totalDays: daysBetween(since, today) }
 }
 
+/**
+ * Sinais de venda: posicoes que, vendidas hoje e pagas o imposto, rendem pelo
+ * menos a Selic + premio. So com premio configurado (sem ele nao ha meta acima
+ * da Selic) e sem as que ainda nao maturaram — nada de decidir no susto.
+ * As que mais passaram da meta vem primeiro.
+ */
+export function sellSignals(list: Position[], settings: FinanceTaxSettings): Position[] {
+  if (settings.selicMultiplier === 1) return []
+  return list.filter((p) => p.beat && !p.maturing).sort((a, b) => b.vsSelic - a.vsSelic)
+}
+
 /* ---------------------------------------------------------------- venda */
 
 /** Quantas unidades da para vender em `day`: o que havia, mais as compras do dia. */

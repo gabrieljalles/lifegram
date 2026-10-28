@@ -278,6 +278,7 @@ export default function Investments() {
                 key={p.asset}
                 position={p}
                 label={benchmark.short}
+                premium={tax.selicMultiplier !== 1}
                 onClick={() =>
                   navigate(`/financeiro/investimentos/ativo/${encodeURIComponent(p.asset)}`)
                 }
