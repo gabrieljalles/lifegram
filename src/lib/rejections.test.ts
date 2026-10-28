@@ -3,6 +3,7 @@ import {
   PRAISES,
   REJECTION_BADGES,
   badgeFor,
+  funnelStagesFor,
   nextBadge,
   praiseFor,
   rejectionProgress,
@@ -117,5 +118,12 @@ describe('praiseFor', () => {
 
   it('sorteios diferentes dao frases diferentes', () => {
     expect(praiseFor(0)).not.toBe(praiseFor(0.9))
+  })
+})
+
+describe('funnelStagesFor', () => {
+  it('sem romance ligado, o funil só tem não e sim', () => {
+    expect(funnelStagesFor(false).map((s) => s.id)).toEqual(['nao', 'sim'])
+    expect(funnelStagesFor(true).map((s) => s.id)).toEqual(['nao', 'sim', 'encontro', 'sexo'])
   })
 })

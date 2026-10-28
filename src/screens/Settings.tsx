@@ -34,6 +34,8 @@ export default function Settings() {
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [notifyState, setNotifyState] = useState(() => notificationPermission())
+  const [romanceOpen, setRomanceOpen] = useState(false)
+  const single = settings.romance_single === true
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
   const status = STATUS_TEXT[syncStatus] ?? STATUS_TEXT.local
@@ -219,6 +221,52 @@ export default function Settings() {
           <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
             No iPhone, notificações só funcionam com o app instalado na Tela de Início.
           </p>
+        </Card>
+      </Section>
+
+      <Section title="Pessoal">
+        <Card className="p-0">
+          <button
+            type="button"
+            onClick={() => setRomanceOpen((open) => !open)}
+            aria-expanded={romanceOpen}
+            className="flex w-full items-center justify-between px-4 py-3.5 text-left"
+          >
+            <span className="text-sm font-bold">Romance</span>
+            <span
+              aria-hidden="true"
+              className={`text-ink-400 transition-transform ${romanceOpen ? 'rotate-90' : ''}`}
+            >
+              ›
+            </span>
+          </button>
+          {romanceOpen && (
+            <div className="border-t border-ink-700 px-4 py-3.5">
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-sm text-ink-200">Estou solteiro(a)</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={single}
+                  aria-label="Estou solteiro(a)"
+                  onClick={() => void saveSettings({ romance_single: !single })}
+                  className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                    single ? 'bg-brand-600' : 'bg-ink-700'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-[left] ${
+                      single ? 'left-[1.375rem]' : 'left-0.5'
+                    }`}
+                  />
+                </button>
+              </label>
+              <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
+                Ligado, o funil da coragem ganha as etapas de encontro e sexo. Desligado, ele conta
+                só nãos e sims — e o que já foi registrado fica guardado.
+              </p>
+            </div>
+          )}
         </Card>
       </Section>
 

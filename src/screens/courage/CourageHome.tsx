@@ -18,6 +18,7 @@ import ThreeSeconds from '../../components/ThreeSeconds'
 import { ContextPicker } from '../../components/game'
 import {
   FUNNEL_STAGES,
+  funnelStagesFor,
   REJECTION_BADGES,
   contextBreakdown,
   funnelCounts,
@@ -86,6 +87,8 @@ export default function CourageHome() {
 
   const listaNaos = useMemo(() => onlyNaos(courageRejections), [courageRejections])
   const funil = useMemo(() => funnelCounts(courageRejections), [courageRejections])
+  const single = settings.romance_single === true
+  const stages = funnelStagesFor(single)
   const naos = useMemo(() => rejectionProgress(listaNaos.length), [listaNaos])
   const naosSemana = useMemo(() => rejectionsThisWeek(listaNaos), [listaNaos])
   const naosSeguidos = useMemo(() => rejectionStreak(listaNaos), [listaNaos])
@@ -279,10 +282,10 @@ export default function CourageHome() {
       <Section title="Funil da coragem">
         <Card className="p-4">
           <ol className="flex flex-col items-center gap-1.5">
-            {FUNNEL_STAGES.map((stage, index) => {
+            {stages.map((stage, index) => {
               const style = FUNNEL_STYLE[stage.id]
               const count = funil[stage.id]
-              const above = index > 0 ? funil[FUNNEL_STAGES[index - 1].id] : 0
+              const above = index > 0 ? funil[stages[index - 1].id] : 0
               return (
                 <li key={stage.id} className="w-full">
                   <button
@@ -383,7 +386,8 @@ export default function CourageHome() {
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-bold">{row.label}</span>
                   <span className="tnum block text-[11px] text-ink-400">
-                    {row.counts.nao} nãos · {row.counts.sim} sims · {row.counts.encontro} encontros
+                    {row.counts.nao} nãos · {row.counts.sim} sims
+                    {single && ` · ${row.counts.encontro} encontros`}
                   </span>
                 </span>
                 <span className="tnum text-right">

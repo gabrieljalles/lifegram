@@ -69,6 +69,11 @@ export interface AppSettings {
   track_answers?: Record<string, number>
   /** Aliquotas e prazos de imposto do Financeiro (a engrenagem). Ausente = padrao da lei. */
   finance_tax?: FinanceTaxSettings
+  /**
+   * Solteiro(a): liga as etapas romanticas do funil da coragem (encontro e
+   * sexo). Ausente/false = desligado, so "nao" e "sim" aparecem.
+   */
+  romance_single?: boolean
   /** Meses (YYYY-MM) cuja DARF ja foi paga: some o aviso de vencimento. */
   finance_darf_paid?: string[]
   updated_at: string

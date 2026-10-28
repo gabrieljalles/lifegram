@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { addRejection, setRejectionContext } from '../lib/courageActions'
-import { FUNNEL_STAGES } from '../lib/rejections'
+import { FUNNEL_STAGES, funnelStagesFor } from '../lib/rejections'
 import { useApp } from '../lib/store'
 import { vibrate } from '../lib/timer'
 import { FUNNEL_XP } from '../lib/xp'
@@ -29,7 +29,8 @@ const STAGE_TONE: Record<FunnelStage, string> = {
 }
 
 export default function ThreeSeconds({ onClose }: { onClose: () => void }) {
-  const { reload } = useApp()
+  const { reload, settings } = useApp()
+  const stages = funnelStagesFor(settings.romance_single === true)
   const [phase, setPhase] = useState<Phase>({ kind: 'count', n: 3 })
   const [saving, setSaving] = useState(false)
 
@@ -109,7 +110,7 @@ export default function ThreeSeconds({ onClose }: { onClose: () => void }) {
             Fala agora. Quando voltar, conta aqui como foi.
           </p>
           <div className="mt-8 grid w-full grid-cols-2 gap-2">
-            {FUNNEL_STAGES.map((stage) => (
+            {stages.map((stage) => (
               <button
                 key={stage.id}
                 type="button"

@@ -33,6 +33,13 @@ export const FUNNEL_STAGES: FunnelStageMeta[] = [
   { id: 'sexo', label: 'Sexo', single: 'Sexo', action: 'Rolou sexo', icon: '🔥' },
 ]
 
+/** Etapas que so fazem sentido para quem esta solteiro(a). */
+export const ROMANCE_STAGES: FunnelStage[] = ['encontro', 'sexo']
+
+/** O funil que aparece: sem o romance ligado (configuracoes), so "nao" e "sim". */
+export const funnelStagesFor = (single: boolean): FunnelStageMeta[] =>
+  single ? FUNNEL_STAGES : FUNNEL_STAGES.filter((stage) => !ROMANCE_STAGES.includes(stage.id))
+
 /** Registros antigos nao tem `kind`: todos eram "nao". */
 export const stageOf = (item: Pick<CourageRejection, 'kind'>): FunnelStage => item.kind ?? 'nao'
 
