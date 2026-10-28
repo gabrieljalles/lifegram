@@ -18,6 +18,12 @@ const TABLES: SyncTable[] = [
   'courage_track_steps',
   'activities',
   'activity_logs',
+  // Por ultimo de proposito: sem a migracao 013 no Supabase estas falham, e
+  // as tabelas de antes ja terao subido e descido.
+  'investment_buys',
+  'investment_quotes',
+  // Migracao 014.
+  'investment_sales',
 ]
 
 /** routine_exercises herda a dona pela rotina, entao nao carrega user_id. */
@@ -35,6 +41,9 @@ const HAS_USER_ID: Record<SyncTable, boolean> = {
   courage_track_steps: true,
   activities: true,
   activity_logs: true,
+  investment_buys: true,
+  investment_quotes: true,
+  investment_sales: true,
 }
 
 /** Campos que so existem no cliente e nao devem viajar para o Postgres. */

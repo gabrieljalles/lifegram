@@ -12,6 +12,9 @@ import type {
   CourageTrackStep,
   Exercise,
   ID,
+  InvestmentBuy,
+  InvestmentQuote,
+  InvestmentSale,
   OutboxEntry,
   Routine,
   RoutineExercise,
@@ -52,6 +55,9 @@ interface WorkoutDB extends DBSchema {
   courage_track_steps: { key: ID; value: CourageTrackStep; indexes: { by_step: string } }
   activities: { key: ID; value: Activity }
   activity_logs: { key: ID; value: ActivityLog; indexes: { by_activity: ID; by_day: string } }
+  investment_buys: { key: ID; value: InvestmentBuy; indexes: { by_asset: string } }
+  investment_quotes: { key: ID; value: InvestmentQuote; indexes: { by_asset: string } }
+  investment_sales: { key: ID; value: InvestmentSale; indexes: { by_asset: string } }
   /** Fila de sincronizacao: o que ainda nao subiu para o Supabase. */
   outbox: { key: number; value: OutboxEntry }
   /** Fotos como blob, garantindo imagem no exercicio mesmo offline. */
@@ -61,7 +67,7 @@ interface WorkoutDB extends DBSchema {
 }
 
 const DB_NAME = 'workout'
-const DB_VERSION = 6
+const DB_VERSION = 8
 
 let dbPromise: Promise<IDBPDatabase<WorkoutDB>> | null = null
 
@@ -122,6 +128,15 @@ export function db(): Promise<IDBPDatabase<WorkoutDB>> {
           const logs = database.createObjectStore('activity_logs', { keyPath: 'id' })
           logs.createIndex('by_activity', 'activity_id')
           logs.createIndex('by_day', 'day')
+        }
+
+        if (oldVersion < 7) {
+          database.createObjectStore('investment_buys', { keyPath: 'id' }).createIndex('by_asset', 'asset')
+          database.createObjectStore('investment_quotes', { keyPath: 'id' }).createIndex('by_asset', 'asset')
+        }
+
+        if (oldVersion < 8) {
+          database.createObjectStore('investment_sales', { keyPath: 'id' }).createIndex('by_asset', 'asset')
         }
       },
     })
@@ -445,6 +460,47 @@ export async function allActivityLogs(): Promise<ActivityLog[]> {
   return (await db()).getAll('activity_logs')
 }
 
+/* -------------------------------------------------------- investimentos */
+
+export async function putInvestmentBuy(buy: InvestmentBuy, { sync = true } = {}) {
+  const database = await db()
+  await database.put('investment_buys', buy)
+  if (sync) await enqueue('investment_buys', buy.id)
+}
+
+/** Compras ativas (sem as apagadas), na ordem em que aconteceram. */
+export async function allInvestmentBuys(): Promise<InvestmentBuy[]> {
+  const rows = await (await db()).getAll('investment_buys')
+  return rows
+    .filter((b) => !b.deleted)
+    .sort((a, b) => a.bought_on.localeCompare(b.bought_on) || a.created_at.localeCompare(b.created_at))
+}
+
+export async function putInvestmentQuote(quote: InvestmentQuote, { sync = true } = {}) {
+  const database = await db()
+  await database.put('investment_quotes', quote)
+  if (sync) await enqueue('investment_quotes', quote.id)
+}
+
+export async function putInvestmentSale(sale: InvestmentSale, { sync = true } = {}) {
+  const database = await db()
+  await database.put('investment_sales', sale)
+  if (sync) await enqueue('investment_sales', sale.id)
+}
+
+/** Vendas ativas (sem as apagadas), na ordem em que aconteceram. */
+export async function allInvestmentSales(): Promise<InvestmentSale[]> {
+  const rows = await (await db()).getAll('investment_sales')
+  return rows
+    .filter((s) => !s.deleted)
+    .sort((a, b) => a.sold_on.localeCompare(b.sold_on) || a.created_at.localeCompare(b.created_at))
+}
+
+export async function allInvestmentQuotes(): Promise<InvestmentQuote[]> {
+  const rows = await (await db()).getAll('investment_quotes')
+  return rows.sort((a, b) => a.quoted_on.localeCompare(b.quoted_on))
+}
+
 /* ----------------------------------------------------------- migracoes */
 
 const CEILING_MIGRATION_KEY = 'migrated:rep_ceiling_12'
@@ -511,6 +567,9 @@ export interface Backup {
   courage_track_steps?: CourageTrackStep[]
   activities?: Activity[]
   activity_logs?: ActivityLog[]
+  investment_buys?: InvestmentBuy[]
+  investment_quotes?: InvestmentQuote[]
+  investment_sales?: InvestmentSale[]
 }
 
 export async function exportBackup(): Promise<Backup> {
@@ -530,6 +589,9 @@ export async function exportBackup(): Promise<Backup> {
     courage_track_steps,
     activities,
     activity_logs,
+    investment_buys,
+    investment_quotes,
+    investment_sales,
   ] = await Promise.all([
     database.getAll('exercises'),
     database.getAll('routines'),
@@ -544,6 +606,9 @@ export async function exportBackup(): Promise<Backup> {
     database.getAll('courage_track_steps'),
     database.getAll('activities'),
     database.getAll('activity_logs'),
+    database.getAll('investment_buys'),
+    database.getAll('investment_quotes'),
+    database.getAll('investment_sales'),
   ])
   return {
     version: 2,
@@ -562,6 +627,9 @@ export async function exportBackup(): Promise<Backup> {
     courage_track_steps,
     activities,
     activity_logs,
+    investment_buys,
+    investment_quotes,
+    investment_sales,
   }
 }
 
@@ -593,6 +661,9 @@ export async function importBackup(backup: Backup): Promise<number> {
     'courage_track_steps',
     'activities',
     'activity_logs',
+    'investment_buys',
+    'investment_quotes',
+    'investment_sales',
   ]
   for (const table of tables) {
     const rows = (backup[table] ?? []) as Array<{ id: ID; updated_at: string }>

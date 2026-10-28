@@ -1,3 +1,5 @@
+import type { AssetKind, FinanceTaxSettings } from './taxes'
+
 export type ID = string
 
 export const MUSCLE_GROUPS = [
@@ -65,6 +67,10 @@ export interface AppSettings {
    * sai o ritmo de cada capitulo; ausente = trilha ainda nao calibrada.
    */
   track_answers?: Record<string, number>
+  /** Aliquotas e prazos de imposto do Financeiro (a engrenagem). Ausente = padrao da lei. */
+  finance_tax?: FinanceTaxSettings
+  /** Meses (YYYY-MM) cuja DARF ja foi paga: some o aviso de vencimento. */
+  finance_darf_paid?: string[]
   updated_at: string
 }
 
@@ -479,6 +485,64 @@ export type SyncTable =
   | 'courage_track_steps'
   | 'activities'
   | 'activity_logs'
+  | 'investment_buys'
+  | 'investment_quotes'
+  | 'investment_sales'
+
+/* -------------------------------------------------------- investimentos */
+
+/**
+ * Uma compra de ativo. A posicao (quantidade, preco medio) sai da soma das
+ * compras — nada de saldo guardado que pode divergir do historico.
+ */
+export interface InvestmentBuy {
+  id: ID
+  user_id: string | null
+  /** Nome do ativo normalizado (maiusculo, sem espaco sobrando): PETR4, TESOURO SELIC 2029. */
+  asset: string
+  quantity: number
+  /** Preco medio pago por unidade nesta compra. */
+  price: number
+  /** Data (YYYY-MM-DD) da compra: a partir dela a Selic comeca a render na comparacao. */
+  bought_on: string
+  /**
+   * Tipo do ativo: decide o imposto (acao, FII, ETF, BDR ou renda fixa). O do
+   * ativo e o da compra mais recente; linhas antigas sem o campo usam o palpite.
+   */
+  kind?: AssetKind
+  /** Apagar e marcar: o outro aparelho recebe a remocao pela sincronizacao. */
+  deleted: boolean
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Uma venda. Junto com as compras, decide o lucro (preco medio na renda
+ * variavel, PEPS na renda fixa) e se foi day trade (compra e venda no mesmo dia).
+ */
+export interface InvestmentSale {
+  id: ID
+  user_id: string | null
+  asset: string
+  quantity: number
+  /** Preco por unidade na venda. */
+  price: number
+  sold_on: string
+  deleted: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** Cotacao informada a mao: o preco do ativo num dia. Uma por ativo por dia. */
+export interface InvestmentQuote {
+  id: ID
+  user_id: string | null
+  asset: string
+  price: number
+  /** Data (YYYY-MM-DD) da cotacao. */
+  quoted_on: string
+  updated_at: string
+}
 
 export interface OutboxEntry {
   seq?: number

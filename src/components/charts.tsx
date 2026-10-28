@@ -598,3 +598,114 @@ export function AverageScoreLine({
     </ResponsiveContainer>
   )
 }
+
+/* ------------------------------------------ capital investido (linhas) */
+
+export interface CapitalChartPoint {
+  label: string
+  date: Date
+  value: number
+  selic: number
+  invested: number
+}
+
+/**
+ * Carteira contra a Selic no mesmo eixo de reais: a distancia entre as duas
+ * linhas e exatamente o quanto voce esta ganhando (ou perdendo) da Selic.
+ *
+ * `gain` tira os aportes da conta: mostra so o rendimento (valor menos o que
+ * foi investido) da carteira e da Selic. No capital os degraus dos aportes
+ * dominam o desenho; no rendimento a diferenca fica visivel.
+ */
+export function CapitalLines({
+  data,
+  formatMoney,
+  formatAxis,
+  gain = false,
+  height = 210,
+}: {
+  data: CapitalChartPoint[]
+  formatMoney: (value: number) => string
+  formatAxis: (value: number) => string
+  gain?: boolean
+  height?: number
+}) {
+  const rows = gain
+    ? data.map((p) => ({ ...p, value: p.value - p.invested, selic: p.selic - p.invested }))
+    : data
+  const renderTooltip = ({ active, payload }: TipProps) => {
+    if (!active || !payload?.length) return null
+    const point = payload[0].payload as CapitalChartPoint
+    return (
+      <TooltipBox
+        title={format(point.date, "d 'de' MMM yyyy", { locale: ptBR })}
+        rows={[
+          { label: gain ? 'Ganho da carteira' : 'Carteira', value: formatMoney(point.value), color: SERIES.primary },
+          { label: gain ? 'Ganho na Selic' : 'Na Selic', value: formatMoney(point.selic), color: SERIES.secondary },
+          { label: 'Investido', value: formatMoney(point.invested), color: AXIS_TEXT },
+        ]}
+      />
+    )
+  }
+
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={rows} margin={{ top: 10, right: 12, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis
+            dataKey="label"
+            tick={axisTick}
+            tickLine={false}
+            axisLine={{ stroke: GRID }}
+            minTickGap={28}
+          />
+          {gain && <ReferenceLine y={0} stroke={AXIS_TEXT} strokeWidth={1} />}
+          <YAxis
+            tick={axisTick}
+            tickLine={false}
+            axisLine={false}
+            width={84}
+            domain={['auto', 'auto']}
+            tickFormatter={(value: number) => formatAxis(value)}
+          />
+          <Tooltip cursor={{ stroke: GRID, strokeWidth: 1 }} content={renderTooltip} />
+          {!gain && (
+            <Line
+              type="stepAfter"
+              dataKey="invested"
+              stroke={AXIS_TEXT}
+              strokeWidth={1}
+              dot={false}
+              activeDot={false}
+            />
+          )}
+          <Line
+            type="monotone"
+            dataKey="selic"
+            stroke={SERIES.secondary}
+            strokeWidth={2}
+            strokeDasharray="5 3"
+            dot={false}
+            activeDot={{ r: 4, stroke: '#0b0f17', strokeWidth: 2 }}
+          />
+          <Line
+            type="linear"
+            dataKey="value"
+            stroke={SERIES.primary}
+            strokeWidth={2.5}
+            dot={false}
+            activeDot={{ r: 5, stroke: '#0b0f17', strokeWidth: 2 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+      <Legend
+        items={[
+          { label: gain ? 'Ganho da carteira' : 'Carteira', color: SERIES.primary },
+          { label: gain ? 'Ganho na Selic' : 'Se fosse Selic', color: SERIES.secondary, dashed: true },
+          ...(gain ? [] : [{ label: 'Investido', color: AXIS_TEXT }]),
+        ]}
+      />
+    </div>
+  )
+}

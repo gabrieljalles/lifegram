@@ -26,6 +26,13 @@ const CourageCalibrate = lazy(() => import('./screens/courage/CourageCalibrate')
 const Agenda = lazy(() => import('./screens/agenda/Agenda'))
 const ActivityForm = lazy(() => import('./screens/agenda/ActivityForm'))
 const ExerciseDetail = lazy(() => import('./screens/ExerciseDetail'))
+const FinanceHome = lazy(() => import('./screens/finance/FinanceHome'))
+const Investments = lazy(() => import('./screens/finance/Investments'))
+const BuyForm = lazy(() => import('./screens/finance/BuyForm'))
+const AssetDetail = lazy(() => import('./screens/finance/AssetDetail'))
+const SellForm = lazy(() => import('./screens/finance/SellForm'))
+const Taxes = lazy(() => import('./screens/finance/Taxes'))
+const TaxSettings = lazy(() => import('./screens/finance/TaxSettings'))
 
 /** A tela de treino e imersiva: sem barra de navegacao competindo com o foco. */
 const IMMERSIVE = ['/treino', '/resumo', '/coragem/mapa']
@@ -66,6 +73,12 @@ const NAV: NavItem[] = [
     label: 'Coragem',
     icon: 'M12 3c3 3 5 6 5 9a5 5 0 01-10 0c0-1.5.5-3 1.5-4 .5 2 1.5 3 2.5 3 0-3 0-5 1-8z',
     match: (p) => p.startsWith('/coragem') && !p.startsWith('/coragem/painel'),
+  },
+  {
+    to: '/financeiro',
+    label: 'Financeiro',
+    icon: 'M3 7h18v13H3zM3 7l2-4h14l2 4M16 13.5h2',
+    match: (p) => p.startsWith('/financeiro'),
   },
   {
     to: '/desempenho',
@@ -169,6 +182,13 @@ export default function App() {
             <Route path="/treinos/:routineId" element={<RoutineEditor />} />
             <Route path="/exercicios" element={<ExerciseList />} />
             <Route path="/exercicios/:exerciseId" element={<ExerciseEditor />} />
+            <Route path="/financeiro" element={<FinanceHome />} />
+            <Route path="/financeiro/investimentos" element={<Investments />} />
+            <Route path="/financeiro/investimentos/comprar" element={<BuyForm />} />
+            <Route path="/financeiro/investimentos/ativo/:asset" element={<AssetDetail />} />
+            <Route path="/financeiro/investimentos/vender" element={<SellForm />} />
+            <Route path="/financeiro/impostos" element={<Taxes />} />
+            <Route path="/financeiro/configuracoes" element={<TaxSettings />} />
             <Route path="/config" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

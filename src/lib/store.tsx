@@ -17,6 +17,9 @@ import {
   allCourageScoreChanges,
   allCourageTrackSteps,
   allExercises,
+  allInvestmentBuys,
+  allInvestmentQuotes,
+  allInvestmentSales,
   allRoutineExercises,
   allRoutines,
   allSessions,
@@ -43,6 +46,9 @@ import type {
   BodyWeightLog,
   Exercise,
   ID,
+  InvestmentBuy,
+  InvestmentQuote,
+  InvestmentSale,
   Routine,
   RoutineExercise,
   Session,
@@ -67,6 +73,9 @@ interface AppState {
   courageRejections: CourageRejection[]
   activities: Activity[]
   activityLogs: ActivityLog[]
+  investmentBuys: InvestmentBuy[]
+  investmentQuotes: InvestmentQuote[]
+  investmentSales: InvestmentSale[]
   active: ActiveWorkout | null
   settings: AppSettings
   exerciseById: Map<ID, Exercise>
@@ -97,6 +106,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [courageRejections, setCourageRejections] = useState<CourageRejection[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
+  const [investmentBuys, setInvestmentBuys] = useState<InvestmentBuy[]>([])
+  const [investmentQuotes, setInvestmentQuotes] = useState<InvestmentQuote[]>([])
+  const [investmentSales, setInvestmentSales] = useState<InvestmentSale[]>([])
   const [active, setActiveState] = useState<ActiveWorkout | null>(null)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -120,6 +132,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       trilha,
       acts,
       actLogs,
+      buys,
+      quotes,
+      sales,
       act,
       prefs,
       pending,
@@ -137,6 +152,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       allCourageTrackSteps(),
       allActivities(true),
       allActivityLogs(),
+      allInvestmentBuys(),
+      allInvestmentQuotes(),
+      allInvestmentSales(),
       getActiveWorkout(),
       getSettings(),
       outboxCount(),
@@ -154,6 +172,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCourageTrackSteps(trilha)
     setActivities(acts)
     setActivityLogs(actLogs)
+    setInvestmentBuys(buys)
+    setInvestmentQuotes(quotes)
+    setInvestmentSales(sales)
     setActiveState(act ?? null)
     setSettings(prefs)
     setPendingCount(pending)
@@ -247,6 +268,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     courageTrackSteps,
     activities,
     activityLogs,
+    investmentBuys,
+    investmentQuotes,
+    investmentSales,
     active,
     settings,
     exerciseById,
