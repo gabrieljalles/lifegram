@@ -25,6 +25,7 @@ import {
   formatPct,
   formatQuantity,
   formatSignedBRL,
+  holdingTime,
   kindOf,
   kindUnconfirmed,
   type SaleResult,
@@ -55,7 +56,9 @@ export default function AssetDetail() {
         date: parseISO(p.day),
         value: p.value,
         selic: p.selic,
+        selicPure: p.selicPure,
         invested: p.invested,
+        bought: p.bought,
       })),
     [data, asset],
   )
@@ -74,7 +77,10 @@ export default function AssetDetail() {
     )
   }
   const kind = kindOf(asset, buys)
-  const sales = [...ownLedger.sales].reverse()
+  // Mais recente primeiro; no mesmo dia, o lancado por ultimo.
+  const sales = [...ownLedger.sales].sort((a, b) =>
+    `${b.sale.sold_on}${b.sale.created_at}`.localeCompare(`${a.sale.sold_on}${a.sale.created_at}`),
+  )
   const salesList = (
     <Section title={`Vendas (${sales.length})`}>
       <div className="flex flex-col gap-2">
@@ -119,6 +125,7 @@ export default function AssetDetail() {
   }
   const p = position
   const unconfirmed = kindUnconfirmed(asset, buys)
+  const held = holdingTime(p.heldSince, today)
   const unit = parseDecimal(price)
   const history = quotes
     .filter((q) => q.asset === asset)
@@ -167,6 +174,11 @@ export default function AssetDetail() {
 
       <div className="px-4 pt-4">
         <Card className="p-4">
+          <p className="tnum mb-3 rounded-xl bg-ink-900/60 px-3 py-2 text-xs text-ink-300">
+            ⏱ Na operação há <b className="text-ink-100">{held.label}</b> ({held.totalDays}{' '}
+            {held.totalDays === 1 ? 'dia' : 'dias'}) · desde{' '}
+            {format(parseISO(p.heldSince), 'dd/MM/yyyy')}
+          </p>
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-ink-400">
@@ -210,27 +222,46 @@ export default function AssetDetail() {
             <ReturnBars returnPct={p.returnPct} selicPct={p.selicPct} label={benchmark.short} />
           </div>
 
-          {/* Os tres precos que contam a historia: o que voce pagou, o que
-              precisa valer para empatar com a Selic e o que vale agora. */}
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+          {/* Os precos que contam a historia: o que voce pagou, o que vale
+              agora e os dois empates — sair do zero a zero contra a Selic e
+              ganhar o premio que voce exige por arriscar. */}
+          <div className="mt-4 grid grid-cols-2 gap-2 text-center">
             <PriceBox
               label="Preço médio"
               value={p.avgPrice}
               hint={`${formatQuantity(p.quantity)} un.`}
             />
-            <PriceBox label="Empate c/ Selic" value={p.breakEven} hint="líquido de IR" highlight />
             <PriceBox
               label={p.quoted ? 'Cotação' : 'Preço atual'}
               value={p.price}
               hint={format(parseISO(p.priceDay), 'dd/MM')}
-              tone={p.beat ? 'good' : 'bad'}
+              tone={p.beat ? 'good' : p.price >= p.breakEvenPure ? undefined : 'bad'}
+            />
+            <PriceBox
+              label="Empate c/ Selic"
+              value={p.breakEvenPure}
+              hint={gapHint(p.price, p.breakEvenPure)}
+              tone={p.price >= p.breakEvenPure ? 'good' : 'bad'}
+              highlight
+            />
+            <PriceBox
+              label="Empate c/ Selic + prêmio"
+              value={p.breakEven}
+              hint={
+                tax.selicMultiplier === 1
+                  ? 'sem prêmio · ⚙ Financeiro'
+                  : `${benchmark.long} · ${gapHint(p.price, p.breakEven)}`
+              }
+              tone={tax.selicMultiplier === 1 ? undefined : p.beat ? 'good' : 'bad'}
+              highlight
             />
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-ink-400">
             Cada compra rende Selic desde a própria data, e a Selic também paga IR pelos dias de
             cada uma. O preço de empate é o que o ativo precisa valer hoje para, vendido e pago o
-            imposto do mês, sobrar o mesmo que a Selic líquida. Acima dele, a posição inteira bate a
-            Selic — mesmo com alguma compra ruim.
+            imposto do mês, sobrar o mesmo que a Selic líquida — acima dele você saiu do zero a
+            zero. O empate com prêmio pede a Selic vezes o multiplicador da engrenagem: acima dele,
+            o risco está pagando o que você exige.
           </p>
         </Card>
       </div>
@@ -260,6 +291,7 @@ export default function AssetDetail() {
               gain={gain}
               formatMoney={formatBRL}
               formatAxis={formatBRLShort}
+              premiumLabel={tax.selicMultiplier === 1 ? undefined : benchmark.long}
               height={180}
             />
           </Card>
@@ -312,45 +344,71 @@ export default function AssetDetail() {
 
       <Section title={`Compras na posição (${p.buys.length})`}>
         <div className="flex flex-col gap-2">
-          {[...p.buys].reverse().map((r) => (
-            <Card key={r.buy.id} className="p-3.5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="tnum text-sm font-bold">
-                    {formatQuantity(r.quantity)} × {formatBRL(r.buy.price)}
-                    {r.quantity < r.buy.quantity - 1e-9 && (
-                      <span className="font-normal text-ink-400">
-                        {` (de ${formatQuantity(r.buy.quantity)})`}
-                      </span>
-                    )}
-                  </p>
-                  <p className="tnum text-[11px] text-ink-400">
-                    {format(parseISO(r.buy.bought_on), 'dd/MM/yyyy')} · {formatBRL(r.amount)}
-                  </p>
+          {[...p.buys]
+            .sort((a, b) =>
+              `${b.buy.bought_on}${b.buy.created_at}`.localeCompare(
+                `${a.buy.bought_on}${a.buy.created_at}`,
+              ),
+            )
+            .map((r) => (
+              <Card key={r.buy.id} className="p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="tnum text-sm font-bold">
+                      {formatQuantity(r.quantity)} × {formatBRL(r.buy.price)}
+                      {r.quantity < r.buy.quantity - 1e-9 && (
+                        <span className="font-normal text-ink-400">
+                          {` (de ${formatQuantity(r.buy.quantity)})`}
+                        </span>
+                      )}
+                    </p>
+                    <p className="tnum text-[11px] text-ink-400">
+                      {format(parseISO(r.buy.bought_on), 'dd/MM/yyyy')} · {formatBRL(r.amount)}
+                    </p>
+                  </div>
+                  <SelicVerdict
+                    beat={r.beat}
+                    vsSelic={r.netValue - r.selicNet}
+                    compact
+                    label={benchmark.short}
+                  />
                 </div>
-                <SelicVerdict beat={r.beat} vsSelic={r.netValue - r.selicNet} compact />
-              </div>
-              <div className="mt-2.5">
-                <ReturnBars returnPct={r.returnPct} selicPct={r.selicPct} />
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <span className="tnum text-[11px] text-ink-400">
-                  Selic líq. {formatBRL(r.selicNet)} · hoje líq. {formatBRL(r.netValue)}
-                </span>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!confirm('Apagar esta compra?')) return
-                    await deleteBuy(r.buy)
-                    await reload()
-                  }}
-                  className="rounded-lg px-2 py-1 text-[11px] font-semibold text-fire-400 active:bg-ink-800"
-                >
-                  Apagar
-                </button>
-              </div>
-            </Card>
-          ))}
+                <div className="mt-2.5">
+                  <ReturnBars
+                    returnPct={r.returnPct}
+                    selicPct={r.selicPct}
+                    label={benchmark.short}
+                  />
+                </div>
+                <div className="mt-2 flex items-center gap-1">
+                  <span className="tnum text-[11px] text-ink-400">
+                    Selic líq. {formatBRL(r.selicNet)} · hoje líq. {formatBRL(r.netValue)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(
+                        `/financeiro/investimentos/comprar?editar=${r.buy.id}&ativo=${encodeURIComponent(asset)}`,
+                      )
+                    }
+                    className="ml-auto rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-400 active:bg-ink-800"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm('Apagar esta compra?')) return
+                      await deleteBuy(r.buy)
+                      await reload()
+                    }}
+                    className="rounded-lg px-2 py-1 text-[11px] font-semibold text-fire-400 active:bg-ink-800"
+                  >
+                    Apagar
+                  </button>
+                </div>
+              </Card>
+            ))}
         </div>
       </Section>
     </div>
@@ -415,6 +473,13 @@ function SaleCard({ result: r, onDelete }: { result: SaleResult; onDelete: () =>
       </div>
     </Card>
   )
+}
+
+/** Quanto o preco atual esta acima (passou) ou abaixo (falta) de um empate. */
+function gapHint(price: number, target: number): string {
+  if (!(target > 0)) return 'líquido de IR'
+  const gap = (price / target - 1) * 100
+  return gap >= 0 ? `✓ passou ${formatPct(gap, 1)}` : `falta ${formatPct(-gap, 1).slice(1)}`
 }
 
 function PriceBox({

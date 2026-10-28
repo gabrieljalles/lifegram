@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { KindPicker } from '../../components/finance-ui'
 import { Button, Card, Header, Section } from '../../components/ui'
-import { buyAsset, parseDecimal } from '../../lib/investActions'
+import { buyAsset, parseDecimal, updateBuy } from '../../lib/investActions'
 import { assetKey, formatBRL, kindOf } from '../../lib/invest'
 import { useApp } from '../../lib/store'
 import { guessKind, type AssetKind } from '../../lib/taxes'
@@ -11,20 +11,25 @@ import { guessKind, type AssetKind } from '../../lib/taxes'
 const input =
   'w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-3 text-sm outline-none focus:border-brand-500'
 
-/** Comprar ativo: /financeiro/investimentos/comprar(?ativo=PETR4). */
+/**
+ * Comprar ativo: /financeiro/investimentos/comprar(?ativo=PETR4). Com
+ * ?editar=<id>, o mesmo formulario corrige uma compra ja lancada.
+ */
 export default function BuyForm() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const { investmentBuys, reload } = useApp()
   const today = format(new Date(), 'yyyy-MM-dd')
 
-  const [asset, setAsset] = useState(params.get('ativo') ?? '')
-  const [quantity, setQuantity] = useState('')
-  const [price, setPrice] = useState('')
-  const [date, setDate] = useState(today)
+  const editing = investmentBuys.find((b) => b.id === params.get('editar')) ?? null
+  const decimal = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 8 })
+  const [asset, setAsset] = useState(editing?.asset ?? params.get('ativo') ?? '')
+  const [quantity, setQuantity] = useState(editing ? decimal(editing.quantity) : '')
+  const [price, setPrice] = useState(editing ? decimal(editing.price) : '')
+  const [date, setDate] = useState(editing?.bought_on ?? today)
   const [saving, setSaving] = useState(false)
   // Escolha explicita vale; sem ela, o tipo que o ativo ja tem ou o palpite pelo nome.
-  const [chosenKind, setChosenKind] = useState<AssetKind | null>(null)
+  const [chosenKind, setChosenKind] = useState<AssetKind | null>(editing?.kind ?? null)
 
   const known = [...new Set(investmentBuys.map((b) => b.asset))].sort()
   const qty = parseDecimal(quantity)
@@ -42,7 +47,9 @@ export default function BuyForm() {
     if (!valid || saving) return
     setSaving(true)
     try {
-      await buyAsset({ asset, quantity: qty, price: unit, bought_on: date, kind: kind! })
+      const draft = { asset, quantity: qty, price: unit, bought_on: date, kind: kind! }
+      if (editing) await updateBuy(editing, draft)
+      else await buyAsset(draft)
       await reload()
       navigate(back)
     } finally {
@@ -53,7 +60,7 @@ export default function BuyForm() {
   return (
     <div className="pb-6">
       <Header
-        title="Comprar ativo"
+        title={editing ? 'Editar compra' : 'Comprar ativo'}
         back={back}
         action={
           <Button size="sm" onClick={() => void save()} disabled={!valid || saving}>
@@ -139,7 +146,7 @@ export default function BuyForm() {
           onClick={() => void save()}
           disabled={!valid || saving}
         >
-          Registrar compra
+          {editing ? 'Salvar alterações' : 'Registrar compra'}
         </Button>
       </div>
     </div>

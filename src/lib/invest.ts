@@ -1,4 +1,4 @@
-import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
+import { addDays, differenceInCalendarDays, format, intervalToDuration, parseISO } from 'date-fns'
 import {
   apurar,
   bucketOf,
@@ -179,14 +179,23 @@ export interface PortfolioInput {
   buys: InvestmentBuy[]
   sales: InvestmentSale[]
   quotes: InvestmentQuote[]
+  /** A meta: Selic vezes o premio de risco (igual a Selic pura sem premio). */
   index: SelicIndex
+  /** A Selic pura, para o empate sem premio. Ausente = a mesma do `index`. */
+  pureIndex?: SelicIndex
   today: string
   settings: FinanceTaxSettings
 }
 
 /** O mesmo dinheiro na Selic de `from` ate `to`: bruto e depois do IR/IOF da renda fixa. */
-function shadow(amount: number, from: string, to: string, input: PortfolioInput) {
-  const gross = amount * input.index.factor(from, to)
+function shadow(
+  amount: number,
+  from: string,
+  to: string,
+  input: PortfolioInput,
+  index = input.index,
+) {
+  const gross = amount * index.factor(from, to)
   const net = amount + fixedIncomeNet(gross - amount, daysBetween(from, to), input.settings).net
   return { gross, net }
 }
@@ -441,6 +450,10 @@ export interface Position {
    * empatar com a Selic liquida de cada compra.
    */
   breakEven: number
+  /** A Selic pura liquida (sem o premio de risco). */
+  selicNetPure: number
+  /** Preco de empate com a Selic pura: acima dele, saiu do zero a zero. */
+  breakEvenPure: number
   /** Desde quando a parte mais antiga da posicao esta na carteira. */
   heldSince: string
   /** Menos de MATURITY_DAYS na carteira: rentabilidade ainda imprecisa. */
@@ -568,6 +581,14 @@ export function portfolio(input: PortfolioInput): Portfolio {
     })
     const selicValue = sum(buys, (b) => b.selicValue)
     const selicNet = sum(buys, (b) => b.selicNet)
+    const selicNetPure = input.pureIndex
+      ? sum(
+          l.lots,
+          (lot) =>
+            shadow(lot.quantity * lot.buy.price, lot.buy.bought_on, today, input, input.pureIndex)
+              .net,
+        )
+      : selicNet
     const heldSince = l.lots.reduce(
       (min, lot) => (lot.buy.bought_on < min ? lot.buy.bought_on : min),
       today,
@@ -594,6 +615,11 @@ export function portfolio(input: PortfolioInput): Portfolio {
       vsSelic: netValue - selicNet,
       beat: netValue >= selicNet,
       breakEven: solvePrice((price) => l.quantity * price - taxAt(price), selicNet, current.price),
+      selicNetPure,
+      breakEvenPure:
+        selicNetPure === selicNet
+          ? solvePrice((price) => l.quantity * price - taxAt(price), selicNet, current.price)
+          : solvePrice((price) => l.quantity * price - taxAt(price), selicNetPure, current.price),
       heldSince,
       maturing: daysBetween(heldSince, today) < MATURITY_DAYS,
       stockSalesIfSold: stockSales + (l.kind === 'acao' ? value : 0),
@@ -689,6 +715,27 @@ export function portfolio(input: PortfolioInput): Portfolio {
   }
 }
 
+/** Tempo na operacao: "1 ano, 2 meses e 5 dias" e o total de dias corridos. */
+export function holdingTime(since: string, today: string): { label: string; totalDays: number } {
+  const d = intervalToDuration({ start: parseISO(since), end: parseISO(today) })
+  const parts = (
+    [
+      [d.years ?? 0, 'ano', 'anos'],
+      [d.months ?? 0, 'mês', 'meses'],
+      [d.days ?? 0, 'dia', 'dias'],
+    ] as const
+  )
+    .filter(([n]) => n > 0)
+    .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
+  const label =
+    parts.length === 0
+      ? 'menos de 1 dia'
+      : parts.length === 1
+        ? parts[0]
+        : `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}`
+  return { label, totalDays: daysBetween(since, today) }
+}
+
 /* ---------------------------------------------------------------- venda */
 
 /** Quantas unidades da para vender em `day`: o que havia, mais as compras do dia. */
@@ -758,8 +805,12 @@ export interface CapitalPoint {
   invested: number
   /** Carteira a preco de mercado + o dinheiro das vendas ja feitas. */
   value: number
-  /** O mesmo dinheiro, cada compra rendendo Selic desde a sua data (bruto). */
+  /** O mesmo dinheiro, cada compra rendendo a meta (Selic x premio) desde a sua data (bruto). */
   selic: number
+  /** O mesmo, na Selic pura — so existe quando ha premio de risco. */
+  selicPure?: number
+  /** Quanto foi comprado neste dia (0 = nenhuma compra): vira marca no grafico. */
+  bought: number
 }
 
 /**
@@ -775,14 +826,25 @@ export function capitalTimeline(input: PortfolioInput, maxPoints = 240): Capital
   const step = Math.max(1, Math.ceil((span + 1) / maxPoints))
   const assets = assetsOf(input)
 
-  const days: string[] = []
-  for (let i = 0; i <= span; i += step) days.push(format(addDays(parseISO(first), i), 'yyyy-MM-dd'))
-  if (days[days.length - 1] !== today) days.push(today)
+  const sampled = new Set<string>(active.map((b) => b.bought_on))
+  for (let i = 0; i <= span; i += step)
+    sampled.add(format(addDays(parseISO(first), i), 'yyyy-MM-dd'))
+  sampled.add(today)
+  // Os dias de compra entram sempre: a marca cai no dia certo.
+  const days = [...sampled].sort()
+  const pureInput = input.pureIndex ? { ...input, index: input.pureIndex } : null
 
   return days.map((day) => {
     let value = 0
     let selic = 0
+    let selicPure = 0
     for (const asset of assets) {
+      if (pureInput) {
+        const pure = ledger(asset, pureInput, day)
+        for (const lot of pure.lots)
+          selicPure += lot.quantity * lot.buy.price * pureInput.index.factor(lot.buy.bought_on, day)
+        for (const s of pure.sales) selicPure += s.selicGross
+      }
       const l = ledger(asset, input, day)
       if (l.quantity > EPS)
         value +=
@@ -802,6 +864,11 @@ export function capitalTimeline(input: PortfolioInput, maxPoints = 240): Capital
       ),
       value,
       selic,
+      ...(pureInput ? { selicPure } : {}),
+      bought: sum(
+        active.filter((b) => b.bought_on === day),
+        buyAmount,
+      ),
     }
   })
 }

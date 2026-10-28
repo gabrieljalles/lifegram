@@ -49,7 +49,9 @@ export default function Investments() {
         date: parseISO(p.day),
         value: p.value,
         selic: p.selic,
+        selicPure: p.selicPure,
         invested: p.invested,
+        bought: p.bought,
       })),
     [timeline],
   )
@@ -223,6 +225,7 @@ export default function Investments() {
                   gain={gain}
                   formatMoney={formatBRL}
                   formatAxis={formatBRLShort}
+                  premiumLabel={tax.selicMultiplier === 1 ? undefined : benchmark.long}
                 />
               ) : (
                 <p className="px-1 py-6 text-center text-sm text-ink-400">

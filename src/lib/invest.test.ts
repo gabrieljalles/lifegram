@@ -3,6 +3,7 @@ import {
   assetKey,
   availableToSell,
   capitalTimeline,
+  holdingTime,
   ledger,
   portfolio,
   previewSale,
@@ -296,5 +297,45 @@ describe('prêmio de risco e maturação', () => {
     const old = portfolio(input({ buys, today: '2026-10-31' })).positions[0]
     expect(young).toMatchObject({ heldSince: '2026-10-01', maturing: true })
     expect(old.maturing).toBe(false)
+  })
+})
+
+describe('empate com a Selic e com a Selic + prêmio', () => {
+  it('o empate com prêmio fica acima do empate com a Selic pura', () => {
+    const buys = [buy('PETR4', 10, 100, '2026-10-01')]
+    const [p] = portfolio(
+      input({ buys, today: '2026-10-06', index: selicIndex(rates, 1.5), pureIndex: index }),
+    ).positions
+    expect(p.selicNetPure).toBeCloseTo(selicNet(1000, 1.01 ** 3, 5))
+    expect(p.breakEvenPure).toBeCloseTo(p.selicNetPure / 10, 4)
+    expect(p.breakEven).toBeGreaterThan(p.breakEvenPure)
+  })
+
+  it('sem prêmio, os dois empates são o mesmo', () => {
+    const [p] = portfolio(
+      input({ buys: [buy('PETR4', 10, 100, '2026-10-01')], today: '2026-10-06' }),
+    ).positions
+    expect(p.breakEvenPure).toBe(p.breakEven)
+  })
+})
+
+describe('holdingTime', () => {
+  it('anos, meses e dias, com o total de dias corridos', () => {
+    expect(holdingTime('2025-08-23', '2026-10-28')).toEqual({
+      label: '1 ano, 2 meses e 5 dias',
+      totalDays: 431,
+    })
+    expect(holdingTime('2026-10-28', '2026-10-28').label).toBe('menos de 1 dia')
+    expect(holdingTime('2026-10-27', '2026-10-28').label).toBe('1 dia')
+  })
+})
+
+describe('parseDecimal', () => {
+  it('ponto como milhar e vírgula como decimal', async () => {
+    const { parseDecimal } = await import('./investActions')
+    expect(parseDecimal('20.000')).toBe(20000)
+    expect(parseDecimal('1.234,56')).toBe(1234.56)
+    expect(parseDecimal('34.2')).toBe(34.2)
+    expect(parseDecimal('0,005')).toBe(0.005)
   })
 })

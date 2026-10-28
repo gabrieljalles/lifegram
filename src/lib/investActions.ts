@@ -29,6 +29,24 @@ export async function buyAsset(draft: {
   return buy
 }
 
+/** Corrige uma compra lancada errada: mesmo id, entao a sincronizacao so atualiza. */
+export async function updateBuy(
+  buy: InvestmentBuy,
+  draft: { asset: string; quantity: number; price: number; bought_on: string; kind: AssetKind },
+): Promise<InvestmentBuy> {
+  const updated: InvestmentBuy = {
+    ...buy,
+    asset: assetKey(draft.asset),
+    quantity: draft.quantity,
+    price: draft.price,
+    bought_on: draft.bought_on,
+    kind: draft.kind,
+    updated_at: nowISO(),
+  }
+  await putInvestmentBuy(updated)
+  return updated
+}
+
 export async function deleteBuy(buy: InvestmentBuy) {
   await putInvestmentBuy({ ...buy, deleted: true, updated_at: nowISO() })
 }
@@ -81,10 +99,14 @@ export async function setQuote(asset: string, price: number, quoted_on: string) 
   })
 }
 
-/** Aceita "1.234,56", "1234,56" e "1234.56". */
+/** Aceita "1.234,56", "1234,56", "1234.56" e "20.000" (milhar com ponto). */
 export function parseDecimal(text: string): number {
   const clean = text.trim().replace(/\s/g, '')
-  const normalized = clean.includes(',') ? clean.replace(/\./g, '').replace(',', '.') : clean
+  const normalized = clean.includes(',')
+    ? clean.replace(/\./g, '').replace(',', '.')
+    : /^\d{1,3}(\.\d{3})+$/.test(clean)
+      ? clean.replace(/\./g, '')
+      : clean
   const value = Number.parseFloat(normalized)
   return Number.isFinite(value) ? value : Number.NaN
 }

@@ -12,7 +12,8 @@ const box =
 const input = `w-full ${box}`
 
 /** Numero com virgula para o campo de texto. */
-const show = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 6 })
+const show = (value: number) =>
+  value.toLocaleString('pt-BR', { maximumFractionDigits: 6, useGrouping: false })
 
 type Draft = {
   brackets: Array<{ upToDays: string; rate: string }>

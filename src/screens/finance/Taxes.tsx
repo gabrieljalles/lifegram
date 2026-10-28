@@ -270,7 +270,7 @@ function MonthCard({
           {m.events.length} {m.events.length === 1 ? 'operação' : 'operações'}
         </summary>
         <ul className="mt-1.5 flex flex-col gap-1">
-          {m.events.map((e, i) => (
+          {[...m.events].reverse().map((e, i) => (
             <li key={i} className="tnum flex justify-between gap-2 text-[11px]">
               <span className="text-ink-300">
                 {format(parseISO(e.date), 'dd/MM')} · {e.asset}{' '}

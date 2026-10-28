@@ -7,10 +7,14 @@ import { DEFAULT_TAX_SETTINGS, type FinanceTaxSettings } from './taxes'
 import type { AppSettings } from './types'
 
 /** As aliquotas da engrenagem por cima do padrao (campo novo nunca fica faltando). */
-export const taxSettingsOf = (settings: AppSettings): FinanceTaxSettings => ({
-  ...DEFAULT_TAX_SETTINGS,
-  ...settings.finance_tax,
-})
+export function taxSettingsOf(settings: AppSettings): FinanceTaxSettings {
+  const merged = { ...DEFAULT_TAX_SETTINGS, ...settings.finance_tax }
+  // A engrenagem chegou a gravar "20.000" lido como 20 (ponto como decimal).
+  // Limite de isencao abaixo de R$ 1.000 so pode ser esse erro: volta ao milhar.
+  if (merged.stockExemptionLimit > 0 && merged.stockExemptionLimit < 1000)
+    merged.stockExemptionLimit *= 1000
+  return merged
+}
 
 export interface Benchmark {
   /** Curto, para rotulos apertados: "Selic" ou "Meta". */
@@ -41,6 +45,7 @@ export function useInvestments() {
       sales: investmentSales,
       quotes: investmentQuotes,
       index: selicIndex(selic.rates, tax.selicMultiplier),
+      pureIndex: tax.selicMultiplier === 1 ? undefined : selicIndex(selic.rates),
       today,
       settings: tax,
     }

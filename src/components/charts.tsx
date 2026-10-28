@@ -605,9 +605,17 @@ export interface CapitalChartPoint {
   label: string
   date: Date
   value: number
+  /** A meta: Selic, ou Selic x premio quando ha premio. */
   selic: number
+  /** Selic pura, so quando ha premio (a meta fica em `selic`). */
+  selicPure?: number
   invested: number
+  /** Valor comprado no dia; > 0 desenha a marca da compra. */
+  bought?: number
 }
+
+/** Ponto vermelho do valor de hoje: o fim da linha da carteira, sempre visivel. */
+const NOW_DOT = '#ef4444'
 
 /**
  * Carteira contra a Selic no mesmo eixo de reais: a distancia entre as duas
@@ -623,16 +631,57 @@ export function CapitalLines({
   formatAxis,
   gain = false,
   height = 210,
+  premiumLabel,
 }: {
   data: CapitalChartPoint[]
   formatMoney: (value: number) => string
   formatAxis: (value: number) => string
   gain?: boolean
   height?: number
+  /** Com premio de risco: nome da meta (ex.: "120% da Selic"); a Selic pura vira outra linha. */
+  premiumLabel?: string
 }) {
   const rows = gain
-    ? data.map((p) => ({ ...p, value: p.value - p.invested, selic: p.selic - p.invested }))
+    ? data.map((p) => ({
+        ...p,
+        value: p.value - p.invested,
+        selic: p.selic - p.invested,
+        selicPure: p.selicPure === undefined ? undefined : p.selicPure - p.invested,
+      }))
     : data
+  const hasPure = premiumLabel !== undefined && rows.some((p) => p.selicPure !== undefined)
+  const metaName = hasPure ? premiumLabel : 'Selic'
+  const last = rows.length - 1
+  // Marca branca nos dias de compra; ponto vermelho no valor de hoje.
+  const renderDot = (props: {
+    cx?: number
+    cy?: number
+    index?: number
+    payload?: CapitalChartPoint
+  }) => {
+    const { cx, cy, index, payload } = props
+    if (cx === undefined || cy === undefined) return <g key={`d-${index}`} />
+    if (index === last)
+      return (
+        <g key={`d-${index}`}>
+          <circle cx={cx} cy={cy} r={9} fill={NOW_DOT} opacity={0.25} />
+          <circle cx={cx} cy={cy} r={5} fill={NOW_DOT} stroke="#0b0f17" strokeWidth={2} />
+        </g>
+      )
+    if (payload?.bought)
+      return (
+        <circle
+          key={`d-${index}`}
+          cx={cx}
+          cy={cy}
+          r={4}
+          fill="#0b0f17"
+          stroke="#f8fafc"
+          strokeWidth={2}
+        />
+      )
+    return <g key={`d-${index}`} />
+  }
   const renderTooltip = ({ active, payload }: TipProps) => {
     if (!active || !payload?.length) return null
     const point = payload[0].payload as CapitalChartPoint
@@ -640,9 +689,29 @@ export function CapitalLines({
       <TooltipBox
         title={format(point.date, "d 'de' MMM yyyy", { locale: ptBR })}
         rows={[
-          { label: gain ? 'Ganho da carteira' : 'Carteira', value: formatMoney(point.value), color: SERIES.primary },
-          { label: gain ? 'Ganho na Selic' : 'Na Selic', value: formatMoney(point.selic), color: SERIES.secondary },
+          {
+            label: gain ? 'Ganho da carteira' : 'Carteira',
+            value: formatMoney(point.value),
+            color: SERIES.primary,
+          },
+          ...(hasPure && point.selicPure !== undefined
+            ? [
+                {
+                  label: gain ? 'Ganho na Selic' : 'Na Selic',
+                  value: formatMoney(point.selicPure),
+                  color: SERIES.secondary,
+                },
+              ]
+            : []),
+          {
+            label: gain ? `Ganho na ${metaName}` : `Na ${metaName}`,
+            value: formatMoney(point.selic),
+            color: hasPure ? SERIES.tertiary : SERIES.secondary,
+          },
           { label: 'Investido', value: formatMoney(point.invested), color: AXIS_TEXT },
+          ...(point.bought
+            ? [{ label: 'Compra no dia', value: formatMoney(point.bought), color: '#f8fafc' }]
+            : []),
         ]}
       />
     )
@@ -680,12 +749,23 @@ export function CapitalLines({
               activeDot={false}
             />
           )}
+          {hasPure && (
+            <Line
+              type="monotone"
+              dataKey="selicPure"
+              stroke={SERIES.secondary}
+              strokeWidth={2}
+              strokeDasharray="5 3"
+              dot={false}
+              activeDot={{ r: 4, stroke: '#0b0f17', strokeWidth: 2 }}
+            />
+          )}
           <Line
             type="monotone"
             dataKey="selic"
-            stroke={SERIES.secondary}
+            stroke={hasPure ? SERIES.tertiary : SERIES.secondary}
             strokeWidth={2}
-            strokeDasharray="5 3"
+            strokeDasharray={hasPure ? '2 3' : '5 3'}
             dot={false}
             activeDot={{ r: 4, stroke: '#0b0f17', strokeWidth: 2 }}
           />
@@ -694,7 +774,7 @@ export function CapitalLines({
             dataKey="value"
             stroke={SERIES.primary}
             strokeWidth={2.5}
-            dot={false}
+            dot={renderDot}
             activeDot={{ r: 5, stroke: '#0b0f17', strokeWidth: 2 }}
           />
         </LineChart>
@@ -702,10 +782,36 @@ export function CapitalLines({
       <Legend
         items={[
           { label: gain ? 'Ganho da carteira' : 'Carteira', color: SERIES.primary },
-          { label: gain ? 'Ganho na Selic' : 'Se fosse Selic', color: SERIES.secondary, dashed: true },
+          {
+            label: gain ? 'Ganho na Selic' : 'Se fosse Selic',
+            color: SERIES.secondary,
+            dashed: true,
+          },
+          ...(hasPure
+            ? [
+                {
+                  label: gain ? `Ganho na ${metaName}` : `Se fosse ${metaName}`,
+                  color: SERIES.tertiary,
+                  dashed: true,
+                },
+              ]
+            : []),
           ...(gain ? [] : [{ label: 'Investido', color: AXIS_TEXT }]),
         ]}
       />
+      <p className="mt-1 flex flex-wrap justify-center gap-x-3 text-[10px] text-ink-400">
+        <span>
+          <span
+            aria-hidden="true"
+            className="mr-1 inline-block h-2 w-2 rounded-full border-2 border-slate-50"
+          />
+          compra
+        </span>
+        <span>
+          <span aria-hidden="true" className="mr-1 inline-block h-2 w-2 rounded-full bg-red-500" />
+          valor de hoje
+        </span>
+      </p>
     </div>
   )
 }
