@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Button } from './ui'
@@ -10,6 +11,11 @@ import { newId, nowISO, type BodyWeightLog } from '../lib/types'
  * Pergunta do peso do dia, aberta por cima da tela do treino. Dia de treino e
  * o gatilho: ja esta com o app aberto, entao nao tem como esquecer — e dia sem
  * treino fica sem medida, de proposito.
+ *
+ * No celular: cartao no alto da tela (o teclado sobe por baixo e nao cobre
+ * nada), sem foco automatico (o teclado so abre quando voce toca no campo),
+ * fundo opaco em vez de desfoque (backdrop-filter em tela cheia deixa a tela
+ * preta em varios aparelhos) e campo de texto que aceita virgula.
  */
 export default function BodyWeightPrompt({
   lastLog,
@@ -22,10 +28,11 @@ export default function BodyWeightPrompt({
 }) {
   const [value, setValue] = useState('')
   const [busy, setBusy] = useState(false)
+  const parsed = Number.parseFloat(value.replace(',', '.'))
+  const valid = Number.isFinite(parsed) && parsed > 0 && parsed < 500
 
   const save = async () => {
-    const parsed = Number.parseFloat(value.replace(',', '.'))
-    if (!Number.isFinite(parsed) || parsed <= 0 || busy) return
+    if (!valid || busy) return
     setBusy(true)
     try {
       await putBodyWeightLog({
@@ -43,37 +50,45 @@ export default function BodyWeightPrompt({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm">
-      <div className="safe-b w-full rounded-t-3xl border-t border-ink-700 bg-ink-850 px-5 pt-5">
-        <p className="text-lg font-bold">Peso de hoje</p>
+  // Portal no body: nenhum container da tela do treino interfere no "fixed".
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="weight-prompt-title"
+      className="fixed inset-0 z-[70] overflow-y-auto bg-ink-950/90 px-4 pb-6 pt-[max(4rem,calc(env(safe-area-inset-top)+2rem))]"
+    >
+      <div className="mx-auto w-full max-w-sm rounded-3xl border border-ink-700 bg-ink-850 p-5 shadow-2xl">
+        <p id="weight-prompt-title" className="text-lg font-bold">
+          Peso de hoje
+        </p>
         <p className="mt-1 text-sm leading-relaxed text-ink-300">
           {lastLog
             ? `Última medida: ${formatWeight(lastLog.weight_kg)} kg em ${format(parseLocalDate(lastLog.logged_at), "d 'de' MMM", { locale: ptBR })}.`
             : 'Suba na balança antes de começar — a média móvel mostra a tendência real.'}
         </p>
-        <div className="mt-4 flex gap-2">
+        <form
+          className="mt-4 flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void save()
+          }}
+        >
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
+            enterKeyHint="done"
+            autoComplete="off"
             placeholder="kg"
-            autoFocus
+            aria-label="Peso em kg"
             value={value}
-            onChange={(event) => setValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') void save()
-            }}
-            className="w-28 rounded-xl border border-ink-700 bg-ink-800 px-3 py-3 text-center text-base outline-none focus:border-brand-500"
+            onChange={(event) => setValue(event.target.value.replace(/[^\d.,]/g, ''))}
+            className="tnum w-28 rounded-xl border border-ink-700 bg-ink-800 px-3 py-3 text-center text-base outline-none focus:border-brand-500"
           />
-          <Button
-            className="flex-1"
-            size="lg"
-            onClick={() => void save()}
-            disabled={busy || !value}
-          >
+          <Button type="submit" className="flex-1" size="lg" disabled={busy || !valid}>
             Salvar peso
           </Button>
-        </div>
+        </form>
         <button
           type="button"
           onClick={onSkip}
@@ -82,6 +97,7 @@ export default function BodyWeightPrompt({
           Agora não
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
