@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { KindPicker } from '../../components/finance-ui'
@@ -28,6 +28,9 @@ export default function BuyForm() {
   const [price, setPrice] = useState(editing ? decimal(editing.price) : '')
   const [date, setDate] = useState(editing?.bought_on ?? today)
   const [saving, setSaving] = useState(false)
+  // Trava imediata: o estado `saving` so muda no proximo render, e um toque
+  // duplo no celular chegava a gravar o mesmo lancamento duas vezes.
+  const locked = useRef(false)
   // Escolha explicita vale; sem ela, o tipo que o ativo ja tem ou o palpite pelo nome.
   const [chosenKind, setChosenKind] = useState<AssetKind | null>(editing?.kind ?? null)
 
@@ -44,7 +47,8 @@ export default function BuyForm() {
     : '/financeiro/investimentos'
 
   const save = async () => {
-    if (!valid || saving) return
+    if (!valid || locked.current) return
+    locked.current = true
     setSaving(true)
     try {
       const draft = { asset, quantity: qty, price: unit, bought_on: date, kind: kind! }
@@ -53,6 +57,7 @@ export default function BuyForm() {
       await reload()
       navigate(back)
     } finally {
+      locked.current = false
       setSaving(false)
     }
   }

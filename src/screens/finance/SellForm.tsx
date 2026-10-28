@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { KindTag } from '../../components/finance-ui'
 import { Button, Card, Header, Section } from '../../components/ui'
@@ -29,6 +29,9 @@ export default function SellForm() {
   const [price, setPrice] = useState('')
   const [date, setDate] = useState(today)
   const [saving, setSaving] = useState(false)
+  // Trava imediata: o estado `saving` so muda no proximo render, e um toque
+  // duplo no celular chegava a gravar o mesmo lancamento duas vezes.
+  const locked = useRef(false)
 
   const key = assetKey(asset)
   const position = positions.find((p) => p.asset === key)
@@ -44,13 +47,15 @@ export default function SellForm() {
     : '/financeiro/investimentos'
 
   const save = async () => {
-    if (!valid || saving) return
+    if (!valid || locked.current) return
+    locked.current = true
     setSaving(true)
     try {
       await sellAsset({ asset: key, quantity: qty, price: unit, sold_on: date })
       await reload()
       navigate(back)
     } finally {
+      locked.current = false
       setSaving(false)
     }
   }

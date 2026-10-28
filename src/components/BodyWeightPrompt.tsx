@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -28,11 +28,14 @@ export default function BodyWeightPrompt({
 }) {
   const [value, setValue] = useState('')
   const [busy, setBusy] = useState(false)
+  // Trava imediata contra toque duplo (o `busy` so muda no proximo render).
+  const locked = useRef(false)
   const parsed = Number.parseFloat(value.replace(',', '.'))
   const valid = Number.isFinite(parsed) && parsed > 0 && parsed < 500
 
   const save = async () => {
-    if (!valid || busy) return
+    if (!valid || locked.current) return
+    locked.current = true
     setBusy(true)
     try {
       await putBodyWeightLog({
@@ -46,6 +49,7 @@ export default function BodyWeightPrompt({
       })
       await onSaved()
     } finally {
+      locked.current = false
       setBusy(false)
     }
   }
