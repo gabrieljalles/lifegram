@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Button,
@@ -28,13 +28,16 @@ import {
   type MuscleGroup,
 } from '../../lib/types'
 import { alertDialog, confirmDialog } from '../../lib/dialog'
+import CatalogSearch from '../../components/CatalogSearch'
+import { fetchCatalogPhoto, type CatalogExercise } from '../../lib/exerciseCatalog'
+import { normalizeName } from '../../lib/transfer'
 
 const REST_PRESETS = [45, 60, 90, 120, 180]
 
 export default function ExerciseEditor() {
   const { exerciseId } = useParams()
   const navigate = useNavigate()
-  const { exerciseById, reload } = useApp()
+  const { exerciseById, exercises, reload } = useApp()
   const fileInput = useRef<HTMLInputElement>(null)
 
   const isNew = exerciseId === 'novo'
@@ -52,6 +55,13 @@ export default function ExerciseEditor() {
   const [draft, setDraft] = useState<Exercise | null>(null)
   const [saving, setSaving] = useState(false)
   const [pasteNote, setPasteNote] = useState<string | null>(null)
+  const [catalogNote, setCatalogNote] = useState<string | null>(null)
+  // Remonta a busca depois de escolher: limpa o campo e fecha a lista.
+  const [catalogRound, setCatalogRound] = useState(0)
+  const ownedNames = useMemo(
+    () => new Set(exercises.filter((e) => !e.archived).map((e) => normalizeName(e.name))),
+    [exercises],
+  )
 
   useEffect(() => {
     if (existing) {
@@ -152,6 +162,28 @@ export default function ExerciseEditor() {
     }))
   }
 
+  /** Exercicio do catalogo: preenche o formulario e baixa a foto como local. */
+  const pickFromCatalog = async (item: CatalogExercise) => {
+    setName(item.name)
+    setGroup(item.group)
+    setMeasure(item.measure)
+    setCatalogRound((round) => round + 1)
+    if (!item.image) {
+      setCatalogNote(`${item.name}: preenchido. Este exercício não tem foto no catálogo.`)
+      return
+    }
+    setCatalogNote('Baixando a foto…')
+    try {
+      const file = await fetchCatalogPhoto(item)
+      if (file) await pickPhoto(file)
+      setCatalogNote(`${item.name}: nome, grupo e foto preenchidos. Ajuste o que quiser e salve.`)
+    } catch {
+      setCatalogNote(
+        `${item.name}: nome e grupo preenchidos. A foto não baixou (sem internet?) — dá para colocar depois.`,
+      )
+    }
+  }
+
   const save = async () => {
     const trimmed = name.trim()
     if (!trimmed) {
@@ -211,6 +243,21 @@ export default function ExerciseEditor() {
           </Button>
         }
       />
+
+      {isNew && (
+        <Section title="Buscar no catálogo">
+          <CatalogSearch
+            key={catalogRound}
+            onPick={(item) => void pickFromCatalog(item)}
+            existingNames={ownedNames}
+          />
+          {catalogNote && (
+            <p className="mt-2 rounded-xl border border-go-600/40 bg-go-600/10 px-3 py-2 text-xs text-go-400">
+              {catalogNote}
+            </p>
+          )}
+        </Section>
+      )}
 
       <Section title="Foto">
         <button
