@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Button, Card, Header, Section, WeekdayPicker } from '../components/ui'
-import { exportBackup, importBackup, type Backup } from '../lib/db'
+import DataTransfer from '../components/DataTransfer'
 import { useApp } from '../lib/store'
 import { isSupabaseConfigured, signInWithEmail, signOut } from '../lib/supabase'
 import { notificationPermission, requestNotificationPermission } from '../lib/timer'
@@ -29,7 +29,6 @@ export default function Settings() {
     settings,
     saveSettings,
   } = useApp()
-  const fileInput = useRef<HTMLInputElement>(null)
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -54,31 +53,6 @@ export default function Settings() {
       setMessage('Link de acesso enviado. Abra o e-mail neste aparelho para entrar.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível enviar o link.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const download = async () => {
-    const backup = await exportBackup()
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `workout-backup-${new Date().toISOString().slice(0, 10)}.json`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const restore = async (file: File) => {
-    setBusy(true)
-    try {
-      const parsed = JSON.parse(await file.text()) as Backup
-      const applied = await importBackup(parsed)
-      await reload()
-      setMessage(`${applied} registros importados.`)
-    } catch {
-      setMessage('Arquivo inválido. Use um backup exportado por este app.')
     } finally {
       setBusy(false)
     }
@@ -270,31 +244,9 @@ export default function Settings() {
         </Card>
       </Section>
 
-      <Section title="Backup">
+      <Section title="Backup e importação">
         <Card className="p-4">
-          <p className="text-sm leading-relaxed text-ink-300">
-            Exporte um arquivo JSON com treinos, exercícios e todo o histórico. Serve como rede de
-            segurança e para migrar de aparelho.
-          </p>
-          <div className="mt-3 flex gap-2">
-            <Button variant="outline" size="sm" onClick={download}>
-              Exportar
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => fileInput.current?.click()}>
-              Importar
-            </Button>
-          </div>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="application/json"
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              if (file) void restore(file)
-              event.target.value = ''
-            }}
-          />
+          <DataTransfer onImported={reload} />
         </Card>
       </Section>
 
