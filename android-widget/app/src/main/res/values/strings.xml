@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lifegram Frases</string>
+    <string name="widget_name">Frase do momento</string>
+    <string name="widget_description">Uma das suas frases do Lifegram, trocando a cada desbloqueio</string>
+</resources>

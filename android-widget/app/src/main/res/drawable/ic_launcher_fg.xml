@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Aspas de abertura em neon -->
+    <path
+        android:fillColor="#818CF8"
+        android:pathData="M38,66c-6,0 -10,-4.5 -10,-10.5c0,-9 6.5,-16 16,-19l2,4c-5,2 -8,5.5 -8.5,9c4.5,0 8,3.5 8,8c0,4.8 -3.5,8.5 -7.5,8.5zM62,66c-6,0 -10,-4.5 -10,-10.5c0,-9 6.5,-16 16,-19l2,4c-5,2 -8,5.5 -8.5,9c4.5,0 8,3.5 8,8c0,4.8 -3.5,8.5 -7.5,8.5z" />
+</vector>

@@ -2,8 +2,10 @@ import { useRef, useState } from 'react'
 import { Button, Card, Header, Section } from '../../components/ui'
 import { confirmDialog } from '../../lib/dialog'
 import { addPhrase, deletePhrase, updatePhrase } from '../../lib/motivation'
+import { isSupabaseConfigured } from '../../lib/supabase'
 import { useApp } from '../../lib/store'
 import type { MotivationPhrase } from '../../lib/types'
+import { WIDGET_APK_URL, createWidgetCode, widgetLink } from '../../lib/widget'
 
 /**
  * Suas frases: o que voce escreve aqui aparece no topo da tela Hoje, uma por
@@ -85,7 +87,94 @@ export default function CouragePhrases() {
           </div>
         </Section>
       )}
+
+      <Section title="Widget no Android">
+        <WidgetSetup />
+      </Section>
     </div>
+  )
+}
+
+/**
+ * Leva as frases para a tela inicial do Android: baixa o app do widget e
+ * conecta com um codigo que so le as frases.
+ */
+function WidgetSetup() {
+  const { userEmail } = useApp()
+  const [code, setCode] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+
+  const connect = async () => {
+    if (busy) return
+    setBusy(true)
+    setNote(null)
+    try {
+      const fresh = await createWidgetCode()
+      setCode(fresh)
+      window.location.href = widgetLink(fresh)
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : 'Não deu para gerar o código.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const copy = async () => {
+    if (!code) return
+    try {
+      await navigator.clipboard.writeText(code)
+      setNote('Código copiado. Cole no app Lifegram Frases.')
+    } catch {
+      setNote('Não deu para copiar: segure no código abaixo e copie.')
+    }
+  }
+
+  return (
+    <Card className="p-4">
+      <p className="text-sm leading-relaxed text-ink-300">
+        Uma frase sua na tela inicial do celular, nova a cada desbloqueio. Toque no widget para
+        trocar.
+      </p>
+      <ol className="mt-3 flex flex-col gap-1 text-sm text-ink-100">
+        <li>1. Baixe e instale o app do widget.</li>
+        <li>2. Volte aqui e toque em Conectar widget.</li>
+        <li>3. No app, toque em Adicionar o widget.</li>
+      </ol>
+      <div className="mt-3 flex flex-col gap-2">
+        <a
+          href={WIDGET_APK_URL}
+          download
+          className="rounded-xl border border-ink-700 bg-ink-800 px-4 py-3 text-center text-sm font-bold active:bg-ink-700"
+        >
+          Baixar o app do widget (APK)
+        </a>
+        {!isSupabaseConfigured || !userEmail ? (
+          <p className="text-xs text-ink-400">
+            Para conectar, entre na sua conta em Ajustes: o widget lê as frases da nuvem.
+          </p>
+        ) : (
+          <Button onClick={() => void connect()} disabled={busy}>
+            {busy ? 'Gerando…' : code ? 'Gerar outro código' : 'Conectar widget'}
+          </Button>
+        )}
+        {code && (
+          <>
+            <Button variant="ghost" onClick={() => void copy()}>
+              Copiar código
+            </Button>
+            <p className="select-all break-all rounded-lg bg-ink-900 p-2 font-mono text-[10px] text-ink-400">
+              {code}
+            </p>
+          </>
+        )}
+        {note && <p className="text-xs text-ink-300">{note}</p>}
+      </div>
+      <p className="mt-3 text-xs text-ink-400">
+        O Android pode pedir para liberar a instalação de apps fora da Play Store. O código só
+        permite ler suas frases; gerar um novo desliga o anterior.
+      </p>
+    </Card>
   )
 }
 

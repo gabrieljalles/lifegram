@@ -9,6 +9,10 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
  */
 export const isSupabaseConfigured = Boolean(url && anonKey)
 
+/** Publicos (o RLS protege os dados): o widget do Android usa os mesmos. */
+export const SUPABASE_URL = url ?? null
+export const SUPABASE_ANON_KEY = anonKey ?? null
+
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(url as string, anonKey as string, {
       auth: {
