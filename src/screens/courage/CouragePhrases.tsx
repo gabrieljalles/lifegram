@@ -5,7 +5,7 @@ import { addPhrase, deletePhrase, updatePhrase } from '../../lib/motivation'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import { useApp } from '../../lib/store'
 import type { MotivationPhrase } from '../../lib/types'
-import { WIDGET_APK_URL, createWidgetCode, widgetLink } from '../../lib/widget'
+import { WIDGET_APK_URL, createWidgetCode, widgetIntentLink } from '../../lib/widget'
 
 /**
  * Suas frases: o que voce escreve aqui aparece no topo da tela Hoje, uma por
@@ -110,9 +110,7 @@ function WidgetSetup() {
     setBusy(true)
     setNote(null)
     try {
-      const fresh = await createWidgetCode()
-      setCode(fresh)
-      window.location.href = widgetLink(fresh)
+      setCode(await createWidgetCode())
     } catch (error) {
       setNote(error instanceof Error ? error.message : 'Não deu para gerar o código.')
     } finally {
@@ -124,7 +122,7 @@ function WidgetSetup() {
     if (!code) return
     try {
       await navigator.clipboard.writeText(code)
-      setNote('Código copiado. Cole no app Lifegram Frases.')
+      setNote('Código copiado. No app Lifegram Frases, toque em Colar e conectar.')
     } catch {
       setNote('Não deu para copiar: segure no código abaixo e copie.')
     }
@@ -138,7 +136,7 @@ function WidgetSetup() {
       </p>
       <ol className="mt-3 flex flex-col gap-1 text-sm text-ink-100">
         <li>1. Baixe e instale o app do widget.</li>
-        <li>2. Volte aqui e toque em Conectar widget.</li>
+        <li>2. Volte aqui, toque em Conectar widget e depois em Abrir no app do widget.</li>
         <li>3. No app, toque em Adicionar o widget.</li>
       </ol>
       <div className="mt-3 flex flex-col gap-2">
@@ -160,6 +158,12 @@ function WidgetSetup() {
         )}
         {code && (
           <>
+            <a
+              href={widgetIntentLink(code)}
+              className="rounded-xl bg-go-500 px-4 py-3 text-center text-sm font-black text-ink-950 active:bg-go-600"
+            >
+              Abrir no app do widget ›
+            </a>
             <Button variant="ghost" onClick={() => void copy()}>
               Copiar código
             </Button>

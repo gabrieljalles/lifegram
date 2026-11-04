@@ -23,6 +23,13 @@ export function encodeWidgetCode(url: string, key: string, token: string): strin
 /** Link que abre o app do widget ja com o codigo. */
 export const widgetLink = (code: string) => `lifegram-widget://setup?c=${code}`
 
+/**
+ * O mesmo link no formato que o Chrome do Android abre com seguranca. Tem que
+ * ser um toque de verdade num link: redirecionar sozinho o Chrome bloqueia.
+ */
+export const widgetIntentLink = (code: string) =>
+  `intent://setup?c=${code}#Intent;scheme=lifegram-widget;package=app.lifegram.widget;end`
+
 export async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')

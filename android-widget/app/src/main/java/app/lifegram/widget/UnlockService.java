@@ -52,10 +52,16 @@ public class UnlockService extends Service {
                 .setContentIntent(open)
                 .setOngoing(true)
                 .build();
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-        } else {
-            startForeground(1, notification);
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+            } else {
+                startForeground(1, notification);
+            }
+        } catch (RuntimeException e) {
+            // Sem permissao de servico: nao derruba o app, so fica sem a troca ao desbloquear.
+            stopSelf();
+            return;
         }
 
         receiver = new BroadcastReceiver() {

@@ -56,6 +56,18 @@ final class Store {
         return new Config(url, key, token);
     }
 
+    /**
+     * Acha o codigo no que foi colado: o codigo puro, o link inteiro
+     * (lifegram-widget://setup?c=...) ou com espacos e quebras no meio.
+     */
+    static String extractCode(String pasted) {
+        String compact = pasted.replaceAll("\\s+", "");
+        int at = compact.indexOf("c=");
+        if (at >= 0) compact = compact.substring(at + 2);
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("eyJ[A-Za-z0-9_-]+").matcher(compact);
+        return m.find() ? m.group() : compact;
+    }
+
     /** O codigo do Lifegram: JSON {u, k, t} em base64url. */
     static boolean saveSetupCode(Context c, String code) {
         if (code == null) return false;

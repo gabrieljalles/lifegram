@@ -2,6 +2,8 @@ package app.lifegram.widget;
 
 import android.app.Activity;
 import android.appwidget.AppWidgetManager;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.graphics.Color;
@@ -9,6 +11,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -18,6 +21,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 /**
  * Tela unica do app: conectar ao Lifegram, ligar a troca ao desbloquear e por
@@ -52,14 +56,19 @@ public class MainActivity extends Activity {
         col.addView(status, margins(0, 20, 0, 0));
 
         col.addView(title("1. Conectar"));
-        col.addView(text("No Lifegram: Coragem → Minhas frases → Conectar widget. O botão abre este app sozinho. "
-                + "Se não abrir, copie o código lá e cole aqui.", 13, INK_300, false));
+        col.addView(text("No Lifegram: Coragem → Minhas frases → Conectar widget. Depois toque em "
+                + "\"Abrir no app do widget\". Se não abrir, toque em Copiar código lá e em "
+                + "\"Colar e conectar\" aqui.", 13, INK_300, false));
+        col.addView(button("Colar e conectar", v -> connect(clipboardText())), margins(0, 10, 0, 0));
         codeInput = new EditText(this);
         codeInput.setHint("Cole o código aqui");
         codeInput.setTextColor(INK_50);
         codeInput.setHintTextColor(INK_300);
         codeInput.setTextSize(13);
         codeInput.setSingleLine(true);
+        // Sem corretor: o teclado nao pode mexer no codigo.
+        codeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
         codeInput.setBackground(round(INK_800));
         codeInput.setPadding(dp(14), dp(12), dp(14), dp(12));
         col.addView(codeInput, margins(0, 10, 0, 0));
@@ -114,8 +123,12 @@ public class MainActivity extends Activity {
     }
 
     private void connect(String code) {
-        if (!Store.saveSetupCode(this, code)) {
-            showStatus("Código inválido. Gere um novo no Lifegram e tente de novo.");
+        if (code == null || code.trim().isEmpty()) {
+            say("Nada para conectar: copie o código no Lifegram primeiro.");
+            return;
+        }
+        if (!Store.saveSetupCode(this, Store.extractCode(code))) {
+            say("Código inválido. Gere um novo no Lifegram, copie e tente de novo.");
             return;
         }
         codeInput.setText("");
@@ -129,8 +142,22 @@ public class MainActivity extends Activity {
         new Thread(() -> {
             Api.Result result = Api.fetch(getApplicationContext());
             if (result.ok) PhraseWidget.showNext(getApplicationContext());
-            runOnUiThread(() -> showStatus(result.message));
+            runOnUiThread(() -> say(result.message));
         }).start();
+    }
+
+    /** Mostra no quadro de status e num aviso rapido, para nunca passar batido. */
+    private void say(String message) {
+        showStatus(message);
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    private String clipboardText() {
+        ClipboardManager cm = getSystemService(ClipboardManager.class);
+        ClipData clip = cm == null ? null : cm.getPrimaryClip();
+        if (clip == null || clip.getItemCount() == 0) return null;
+        CharSequence text = clip.getItemAt(0).coerceToText(this);
+        return text == null ? null : text.toString();
     }
 
     private void showStatus(String message) {
@@ -147,7 +174,7 @@ public class MainActivity extends Activity {
         if (manager != null && manager.isRequestPinAppWidgetSupported()) {
             manager.requestPinAppWidget(new ComponentName(this, PhraseWidget.class), null, null);
         } else {
-            showStatus("Seu celular não deixa adicionar por aqui: use o caminho pelos Widgets da tela inicial.");
+            say("Seu celular não deixa adicionar por aqui: use o caminho pelos Widgets da tela inicial.");
         }
     }
 
