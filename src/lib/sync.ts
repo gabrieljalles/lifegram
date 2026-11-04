@@ -24,6 +24,8 @@ const TABLES: SyncTable[] = [
   'investment_quotes',
   // Migracao 014.
   'investment_sales',
+  // Migracao 015.
+  'motivation_phrases',
 ]
 
 /** routine_exercises herda a dona pela rotina, entao nao carrega user_id. */
@@ -44,6 +46,7 @@ const HAS_USER_ID: Record<SyncTable, boolean> = {
   investment_buys: true,
   investment_quotes: true,
   investment_sales: true,
+  motivation_phrases: true,
 }
 
 /** Campos que so existem no cliente e nao devem viajar para o Postgres. */

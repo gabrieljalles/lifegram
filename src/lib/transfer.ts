@@ -59,8 +59,9 @@ export const CATEGORIES: Category[] = [
   {
     id: 'coragem',
     label: 'Coragem',
-    hint: 'Metas, tentativas, nãos e trilha',
+    hint: 'Metas, tentativas, nãos, trilha e frases',
     tables: [
+      'motivation_phrases',
       'courage_goals',
       'courage_attempts',
       'courage_score_changes',

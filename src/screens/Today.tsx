@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import PRCelebration from '../components/PRCelebration'
 import SellSignalCard from '../components/SellSignalCard'
+import MotivationCard from '../components/MotivationCard'
 import { LevelCard, MissionCard, StatPill } from '../components/game'
 import { NextActivityCard } from '../components/agenda-ui'
 import { useNow } from '../lib/useNow'
@@ -153,7 +154,11 @@ export default function Today() {
         </button>
       </header>
 
-      {/* O chefao abre a tela: e a primeira coisa que voce ve ao entrar. */}
+      {/* Uma das suas frases, trocando a cada visita, logo acima do chefao. */}
+      <div className="px-4 pb-3">
+        <MotivationCard />
+      </div>
+
       <div className="px-4 pb-3">
         <BossCard boss={boss} />
       </div>

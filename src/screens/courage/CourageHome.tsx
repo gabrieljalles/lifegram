@@ -61,8 +61,15 @@ const FILTERS: Array<{ id: Filter; label: string }> = [
 
 export default function CourageHome() {
   const navigate = useNavigate()
-  const { courageGoals, courageAttempts, courageRejections, courageTrackSteps, settings, reload } =
-    useApp()
+  const {
+    courageGoals,
+    courageAttempts,
+    courageRejections,
+    courageTrackSteps,
+    motivationPhrases,
+    settings,
+    reload,
+  } = useApp()
   const [filter, setFilter] = useState<Filter>('todos')
   const [celebration, setCelebration] = useState<{
     icon: string
@@ -276,6 +283,28 @@ export default function CourageHome() {
               Viu alguém? Toca aqui, conta 3-2-1 e vai antes do medo montar a desculpa.
             </span>
           </span>
+        </button>
+      </div>
+
+      {/* Frases que te marcaram: aparecem no topo da tela Hoje. */}
+      <div className="px-4 pt-3">
+        <button
+          type="button"
+          onClick={() => navigate('/coragem/frases')}
+          className="flex w-full items-center gap-3 rounded-2xl border border-brand-500/40 bg-brand-600/10 p-3.5 text-left active:bg-brand-600/20"
+        >
+          <span className="text-2xl" aria-hidden="true">
+            💬
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-black">Minhas frases</span>
+            <span className="block text-xs text-ink-400">
+              {motivationPhrases.length === 0
+                ? 'Guarde as mensagens que te marcaram'
+                : `${motivationPhrases.length} ${motivationPhrases.length === 1 ? 'frase' : 'frases'} · uma por vez na tela Hoje`}
+            </span>
+          </span>
+          <span className="text-sm font-bold text-brand-400">›</span>
         </button>
       </div>
 

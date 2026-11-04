@@ -20,6 +20,7 @@ import {
   allInvestmentBuys,
   allInvestmentQuotes,
   allInvestmentSales,
+  allMotivationPhrases,
   allRoutineExercises,
   allRoutines,
   allSessions,
@@ -49,6 +50,7 @@ import type {
   InvestmentBuy,
   InvestmentQuote,
   InvestmentSale,
+  MotivationPhrase,
   Routine,
   RoutineExercise,
   Session,
@@ -76,6 +78,7 @@ interface AppState {
   investmentBuys: InvestmentBuy[]
   investmentQuotes: InvestmentQuote[]
   investmentSales: InvestmentSale[]
+  motivationPhrases: MotivationPhrase[]
   active: ActiveWorkout | null
   settings: AppSettings
   exerciseById: Map<ID, Exercise>
@@ -109,6 +112,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [investmentBuys, setInvestmentBuys] = useState<InvestmentBuy[]>([])
   const [investmentQuotes, setInvestmentQuotes] = useState<InvestmentQuote[]>([])
   const [investmentSales, setInvestmentSales] = useState<InvestmentSale[]>([])
+  const [motivationPhrases, setMotivationPhrases] = useState<MotivationPhrase[]>([])
   const [active, setActiveState] = useState<ActiveWorkout | null>(null)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -135,6 +139,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       buys,
       quotes,
       sales,
+      phrases,
       act,
       prefs,
       pending,
@@ -155,6 +160,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       allInvestmentBuys(),
       allInvestmentQuotes(),
       allInvestmentSales(),
+      allMotivationPhrases(),
       getActiveWorkout(),
       getSettings(),
       outboxCount(),
@@ -175,6 +181,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setInvestmentBuys(buys)
     setInvestmentQuotes(quotes)
     setInvestmentSales(sales)
+    setMotivationPhrases(phrases)
     setActiveState(act ?? null)
     setSettings(prefs)
     setPendingCount(pending)
@@ -271,6 +278,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     investmentBuys,
     investmentQuotes,
     investmentSales,
+    motivationPhrases,
     active,
     settings,
     exerciseById,

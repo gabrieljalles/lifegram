@@ -493,6 +493,24 @@ export type SyncTable =
   | 'investment_buys'
   | 'investment_quotes'
   | 'investment_sales'
+  | 'motivation_phrases'
+
+/* ------------------------------------------------------------- frases */
+
+/**
+ * Frase que te marcou, escrita por voce. Aparece no topo da tela Hoje e troca
+ * a cada vez que voce volta para ela.
+ */
+export interface MotivationPhrase {
+  id: ID
+  user_id: string | null
+  text: string
+  /** Quem disse (opcional). */
+  author: string | null
+  deleted: boolean
+  created_at: string
+  updated_at: string
+}
 
 /* -------------------------------------------------------- investimentos */
 

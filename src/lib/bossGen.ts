@@ -37,8 +37,6 @@ export interface BossDesign {
   seed: number
   name: string
   traits: BossTraits
-  /** Frases quando voce cutuca o chefao. */
-  taunts: string[]
 }
 
 /* -------------------------------------------------------------- sorteio */
@@ -97,35 +95,14 @@ function creatureOf(t: BossTraits, random: () => number): string {
 }
 
 /** O vicio que o chefao representa — e o que voce derrota na semana. */
-const VICES: Array<{ name: string; taunts: string[] }> = [
-  {
-    name: 'da Preguiça',
-    taunts: ['Deita mais 5 minutinhos…', 'Treino? Amanhã você faz.', 'O sofá tá tão quentinho.'],
-  },
-  {
-    name: 'do Medo',
-    taunts: ['E se ela rir de você?', 'Melhor não arriscar.', 'Você vai travar de novo.'],
-  },
-  {
-    name: 'da Vergonha',
-    taunts: ['Todo mundo tá olhando…', 'Que mico seria.', 'Fica quietinho aí.'],
-  },
-  {
-    name: 'da Desculpa',
-    taunts: ['Hoje tá chovendo.', 'Tô cansado demais.', 'Semana que vem eu começo.'],
-  },
-  {
-    name: 'do Celular',
-    taunts: ['Só mais um vídeo…', 'Rola o feed, rola.', 'Notificação nova!'],
-  },
-  {
-    name: 'do "E se…"',
-    taunts: ['E se der errado?', 'E se não for a hora?', 'E se…'],
-  },
-  {
-    name: 'da Procrastinação',
-    taunts: ['Depois você vê isso.', 'Ainda dá tempo.', 'Deixa pra última hora.'],
-  },
+const VICES: Array<{ name: string }> = [
+  { name: 'da Preguiça' },
+  { name: 'do Medo' },
+  { name: 'da Vergonha' },
+  { name: 'da Desculpa' },
+  { name: 'do Celular' },
+  { name: 'do "E se…"' },
+  { name: 'da Procrastinação' },
 ]
 
 export function generateBoss(seed: number): BossDesign {
@@ -153,6 +130,5 @@ export function generateBoss(seed: number): BossDesign {
     seed,
     name: `${creatureOf(traits, random)} ${vice.name}`,
     traits,
-    taunts: vice.taunts,
   }
 }

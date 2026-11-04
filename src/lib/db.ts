@@ -15,6 +15,7 @@ import type {
   InvestmentBuy,
   InvestmentQuote,
   InvestmentSale,
+  MotivationPhrase,
   OutboxEntry,
   Routine,
   RoutineExercise,
@@ -58,6 +59,7 @@ interface WorkoutDB extends DBSchema {
   investment_buys: { key: ID; value: InvestmentBuy; indexes: { by_asset: string } }
   investment_quotes: { key: ID; value: InvestmentQuote; indexes: { by_asset: string } }
   investment_sales: { key: ID; value: InvestmentSale; indexes: { by_asset: string } }
+  motivation_phrases: { key: ID; value: MotivationPhrase }
   /** Fila de sincronizacao: o que ainda nao subiu para o Supabase. */
   outbox: { key: number; value: OutboxEntry }
   /** Fotos como blob, garantindo imagem no exercicio mesmo offline. */
@@ -67,7 +69,7 @@ interface WorkoutDB extends DBSchema {
 }
 
 const DB_NAME = 'workout'
-const DB_VERSION = 8
+const DB_VERSION = 9
 
 let dbPromise: Promise<IDBPDatabase<WorkoutDB>> | null = null
 
@@ -137,6 +139,10 @@ export function db(): Promise<IDBPDatabase<WorkoutDB>> {
 
         if (oldVersion < 8) {
           database.createObjectStore('investment_sales', { keyPath: 'id' }).createIndex('by_asset', 'asset')
+        }
+
+        if (oldVersion < 9) {
+          database.createObjectStore('motivation_phrases', { keyPath: 'id' })
         }
       },
     })
@@ -496,6 +502,18 @@ export async function allInvestmentSales(): Promise<InvestmentSale[]> {
     .sort((a, b) => a.sold_on.localeCompare(b.sold_on) || a.created_at.localeCompare(b.created_at))
 }
 
+export async function putMotivationPhrase(phrase: MotivationPhrase, { sync = true } = {}) {
+  const database = await db()
+  await database.put('motivation_phrases', phrase)
+  if (sync) await enqueue('motivation_phrases', phrase.id)
+}
+
+/** Frases ativas, da mais nova para a mais antiga. */
+export async function allMotivationPhrases(): Promise<MotivationPhrase[]> {
+  const rows = await (await db()).getAll('motivation_phrases')
+  return rows.filter((p) => !p.deleted).sort((a, b) => b.created_at.localeCompare(a.created_at))
+}
+
 export async function allInvestmentQuotes(): Promise<InvestmentQuote[]> {
   const rows = await (await db()).getAll('investment_quotes')
   return rows.sort((a, b) => a.quoted_on.localeCompare(b.quoted_on))
@@ -570,6 +588,7 @@ export interface Backup {
   investment_buys?: InvestmentBuy[]
   investment_quotes?: InvestmentQuote[]
   investment_sales?: InvestmentSale[]
+  motivation_phrases?: MotivationPhrase[]
 }
 
 export async function exportBackup(): Promise<Backup> {
@@ -592,6 +611,7 @@ export async function exportBackup(): Promise<Backup> {
     investment_buys,
     investment_quotes,
     investment_sales,
+    motivation_phrases,
   ] = await Promise.all([
     database.getAll('exercises'),
     database.getAll('routines'),
@@ -609,6 +629,7 @@ export async function exportBackup(): Promise<Backup> {
     database.getAll('investment_buys'),
     database.getAll('investment_quotes'),
     database.getAll('investment_sales'),
+    database.getAll('motivation_phrases'),
   ])
   return {
     version: 2,
@@ -630,6 +651,7 @@ export async function exportBackup(): Promise<Backup> {
     investment_buys,
     investment_quotes,
     investment_sales,
+    motivation_phrases,
   }
 }
 
@@ -664,6 +686,7 @@ export async function importBackup(backup: Backup): Promise<number> {
     'investment_buys',
     'investment_quotes',
     'investment_sales',
+    'motivation_phrases',
   ]
   for (const table of tables) {
     const rows = (backup[table] ?? []) as Array<{ id: ID; updated_at: string }>

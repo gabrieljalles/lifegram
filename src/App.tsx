@@ -23,6 +23,7 @@ const CourageGoalForm = lazy(() => import('./screens/courage/CourageGoalForm'))
 const CourageAttemptForm = lazy(() => import('./screens/courage/CourageAttemptForm'))
 const CourageDashboard = lazy(() => import('./screens/courage/CourageDashboard'))
 const CourageTrack = lazy(() => import('./screens/courage/CourageTrack'))
+const CouragePhrases = lazy(() => import('./screens/courage/CouragePhrases'))
 const CourageCalibrate = lazy(() => import('./screens/courage/CourageCalibrate'))
 const Agenda = lazy(() => import('./screens/agenda/Agenda'))
 const ActivityForm = lazy(() => import('./screens/agenda/ActivityForm'))
@@ -169,6 +170,7 @@ export default function App() {
             <Route path="/coragem" element={<CourageHome />} />
             <Route path="/coragem/painel" element={<CourageDashboard />} />
             <Route path="/coragem/mapa" element={<CourageTrack />} />
+            <Route path="/coragem/frases" element={<CouragePhrases />} />
             <Route path="/coragem/mapa/calibrar" element={<CourageCalibrate />} />
             <Route path="/coragem/novo" element={<CourageGoalForm />} />
             <Route path="/coragem/tentativa/:attemptId" element={<CourageAttemptForm />} />

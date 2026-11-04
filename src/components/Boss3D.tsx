@@ -27,7 +27,6 @@ const OUTLINE = '#0b0f17'
 export default function Boss3D({ design, life, defeated, height = 230 }: Props) {
   const mountRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<BossApi | null>(null)
-  const [taunt, setTaunt] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
 
   // Cena: monta uma vez por chefao (a semana muda o design).
@@ -85,21 +84,8 @@ export default function Boss3D({ design, life, defeated, height = 230 }: Props) 
     return () => window.clearTimeout(timer)
   }, [life, design.seed])
 
-  useEffect(() => {
-    if (!taunt) return
-    const timer = window.setTimeout(() => setTaunt(null), 2200)
-    return () => window.clearTimeout(timer)
-  }, [taunt])
-
-  const onPoke = () => {
-    apiRef.current?.poke()
-    if (defeated) {
-      setTaunt('…')
-      return
-    }
-    const options = design.taunts.filter((t) => t !== taunt)
-    setTaunt(options[Math.floor(Math.random() * options.length)] ?? design.taunts[0])
-  }
+  // Cutucar so faz ele reagir: nada de frase negativa na sua tela.
+  const onPoke = () => apiRef.current?.poke()
 
   if (failed) {
     return (
@@ -123,15 +109,6 @@ export default function Boss3D({ design, life, defeated, height = 230 }: Props) 
         role="img"
         aria-label={`${design.name}${defeated ? ', derrotado' : ''}. Toque para cutucar, arraste para girar.`}
       />
-      {taunt && (
-        <div
-          key={taunt}
-          className="animate-pop-in pointer-events-none absolute left-1/2 top-2 max-w-[80%] -translate-x-1/2 rounded-2xl border-2 border-ink-950 bg-ink-50 px-3 py-1.5 text-center text-xs font-bold text-ink-950 shadow-lg"
-        >
-          {taunt}
-          <span className="absolute -bottom-2 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b-2 border-r-2 border-ink-950 bg-ink-50" />
-        </div>
-      )}
     </div>
   )
 }
