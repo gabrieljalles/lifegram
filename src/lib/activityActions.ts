@@ -12,7 +12,8 @@ import { newId, nowISO, type Activity, type ID } from './types'
 export type ActivityDraft = Pick<
   Activity,
   'title' | 'icon' | 'kind' | 'days' | 'date' | 'time' | 'duration_minutes' | 'travel_minutes'
->
+> &
+  Partial<Pick<Activity, 'item_type' | 'dose'>>
 
 function mirror() {
   if (!gcalTokenValid()) return

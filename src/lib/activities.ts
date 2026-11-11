@@ -8,20 +8,11 @@ import type { Activity, ActivityLog, Weekday } from './types'
  * agenda e os testes calcularem exatamente a mesma coisa.
  */
 
-/** XP por atividade cumprida. Esporadica vale mais: costuma ser mais rara. */
-export const ACTIVITY_XP: Record<Activity['kind'], number> = {
-  recorrente: 20,
-  esporadica: 40,
-}
-
-/** Corrente desse tamanho dobra o XP da recorrente: o combo. */
-export const COMBO_AT = 7
-
 export const ACTIVITY_ICONS = ['📖', '🧘', '💧', '🏃', '🎸', '🧠', '✍️', '🧹', '💊', '📞', '🦷', '⭐']
 
 export const dayKey = (date: Date): string => format(date, 'yyyy-MM-dd')
 
-/** Ignora `archived` de proposito: a corrente antiga continua valendo XP. */
+/** Ignora `archived` de proposito: o historico antigo continua contando. */
 export function occursOn(activity: Activity, date: Date): boolean {
   const key = dayKey(date)
   if (activity.kind === 'esporadica') return activity.date === key
@@ -119,38 +110,6 @@ export function streakOf(activity: Activity, logs: ActivityLog[], now = new Date
     streak++
   }
   return streak
-}
-
-/** XP de uma execucao: dobra quando ela fecha ou estende um combo. */
-export function xpForLog(activity: Activity, streakAtLog: number): number {
-  const base = ACTIVITY_XP[activity.kind]
-  return activity.kind === 'recorrente' && streakAtLog >= COMBO_AT ? base * 2 : base
-}
-
-/** XP que esta ocorrencia vale (ou valeu): a feita ja conta na corrente. */
-export function xpOf(occ: Occurrence, streak: number): number {
-  return xpForLog(occ.activity, occ.done ? streak : streak + 1)
-}
-
-/** XP total das atividades, e quanto disso entrou hoje. */
-export function activityXP(
-  activities: Activity[],
-  logs: ActivityLog[],
-  now = new Date(),
-): { total: number; today: number } {
-  const byId = new Map(activities.map((a) => [a.id, a]))
-  const todayKey = dayKey(now)
-  let total = 0
-  let today = 0
-  for (const log of logs) {
-    const activity = byId.get(log.activity_id)
-    if (!activity) continue
-    const streak = streakOf(activity, logs, parseISO(log.day))
-    const xp = xpForLog(activity, streak)
-    total += xp
-    if (log.day === todayKey) today += xp
-  }
-  return { total, today }
 }
 
 /* --------------------------------------------------------------- textos */

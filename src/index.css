@@ -1,42 +1,91 @@
 @import "tailwindcss";
 
+/*
+ * Duas paletas com os mesmos nomes de token: papel de agenda (dia) e capa
+ * azul-marinho (noite). As telas so usam os tokens, entao a troca e global.
+ * Os nomes antigos ficam (ink = papel/tinta, brand = caneta azul, fire =
+ * margem vermelha, pr = marca-texto) para nao reescrever cada tela.
+ */
 @theme {
-  --color-ink-950: #070a10;
-  --color-ink-900: #0b0f17;
-  --color-ink-850: #111823;
-  --color-ink-800: #161f2d;
-  --color-ink-700: #1f2b3d;
-  --color-ink-600: #2c3b53;
-  --color-ink-400: #64748b;
-  --color-ink-300: #94a3b8;
-  --color-ink-100: #e2e8f0;
-  --color-ink-50: #f5f8fc;
+  --color-ink-950: #f3f1ea;
+  --color-ink-900: #fbfaf6;
+  --color-ink-850: #ffffff;
+  --color-ink-800: #eef1f7;
+  --color-ink-700: #d6deec;
+  --color-ink-600: #b8c2d6;
+  --color-ink-400: #636b7d;
+  --color-ink-300: #464e62;
+  --color-ink-100: #1e2433;
+  --color-ink-50: #10141f;
 
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
+  --color-brand-400: #1d3fa6;
+  --color-brand-500: #2447b5;
+  --color-brand-600: #1d3fa6;
 
-  --color-go-400: #4ade80;
-  --color-go-500: #22c55e;
-  --color-go-600: #16a34a;
+  --color-go-400: #1b7444;
+  --color-go-500: #23935a;
+  --color-go-600: #1b7a49;
 
-  --color-fire-400: #fb923c;
-  --color-fire-500: #f97316;
-  --color-fire-600: #ea580c;
+  --color-fire-400: #b8352c;
+  --color-fire-500: #d2463c;
+  --color-fire-600: #b33a31;
 
-  /* Aqua: cor auxiliar das areas novas, validada no fundo escuro. */
-  --color-aqua-400: #34d3a6;
-  --color-aqua-500: #199e70;
-  --color-aqua-600: #127a57;
+  --color-aqua-400: #0d7462;
+  --color-aqua-500: #14967a;
+  --color-aqua-600: #0f7560;
 
-  --color-pr-400: #fbbf24;
-  --color-pr-500: #f59e0b;
+  --color-pr-400: #7d6000;
+  --color-pr-500: #f4e04d;
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Margem vermelha e marca-texto, com nome proprio para as telas novas. */
+  --color-margin: #d2463c;
+  --color-highlight: #f4e04d;
+  --color-highlight-ink: #1e2433;
+
+  --font-sans: "Roboto", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Barlow Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
 }
 
 :root {
+  color-scheme: light;
+}
+
+/* Noite: capa azul-marinho, tinta clara e marca-texto ambar que nao ofusca. */
+:root[data-theme="night"] {
   color-scheme: dark;
+  --color-ink-950: #0b1230;
+  --color-ink-900: #10183a;
+  --color-ink-850: #151f47;
+  --color-ink-800: #1c2754;
+  --color-ink-700: #2a3666;
+  --color-ink-600: #3a4778;
+  --color-ink-400: #8e97b3;
+  --color-ink-300: #b4bcd3;
+  --color-ink-100: #e6e9f2;
+  --color-ink-50: #f5f7fc;
+
+  --color-brand-400: #a9bbff;
+  --color-brand-500: #7f95f0;
+  --color-brand-600: #4f67d6;
+
+  --color-go-400: #6fd39a;
+  --color-go-500: #3fb673;
+  --color-go-600: #2e9a5e;
+
+  --color-fire-400: #f0857a;
+  --color-fire-500: #e0695c;
+  --color-fire-600: #c9554a;
+
+  --color-aqua-400: #5fd8b8;
+  --color-aqua-500: #2bb08c;
+  --color-aqua-600: #1e8e70;
+
+  --color-pr-400: #e0b85a;
+  --color-pr-500: #b8923a;
+
+  --color-margin: #e0695c;
+  --color-highlight: #b8923a;
+  --color-highlight-ink: #10183a;
 }
 
 html, body, #root {
@@ -48,6 +97,7 @@ body {
   background: var(--color-ink-900);
   color: var(--color-ink-100);
   font-family: var(--font-sans);
+  transition: background-color 400ms ease;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
 }
@@ -102,54 +152,6 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 .animate-glow { animation: glow-pulse 1.8s ease-in-out infinite; }
 
-/* ------------------------------------------------------------ camada de jogo */
-
-/* Card de destaque: brilho diagonal sobre o fundo escuro. */
-.game-card {
-  background:
-    radial-gradient(120% 90% at 0% 0%, rgba(99, 102, 241, 0.28), transparent 60%),
-    radial-gradient(90% 80% at 100% 100%, rgba(245, 158, 11, 0.14), transparent 60%),
-    #111823;
-}
-
-/* Escudo do nivel: ouro com corte de brasao. */
-.level-shield {
-  background: linear-gradient(160deg, #fde68a, #f59e0b 55%, #b45309);
-  clip-path: polygon(50% 0, 100% 14%, 100% 62%, 50% 100%, 0 62%, 0 14%);
-  filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.55));
-}
-
-/* Barra de XP com brilho que corre: parece viva, pede para encher. */
-@keyframes shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
-}
-.xp-fill {
-  background: linear-gradient(90deg, #6366f1, #a78bfa 40%, #fde68a 50%, #a78bfa 60%, #6366f1);
-  background-size: 200% 100%;
-  animation: shimmer 2.6s linear infinite;
-  box-shadow: 0 0 12px rgba(167, 139, 250, 0.6);
-}
-
-/* Barra de vida do chefao. */
-.hp-fill {
-  background: linear-gradient(90deg, #dc2626, #f87171);
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.55);
-}
-
-@keyframes wobble {
-  0%, 100% { transform: rotate(0deg) scale(1); }
-  25% { transform: rotate(-6deg) scale(1.05); }
-  75% { transform: rotate(6deg) scale(1.05); }
-}
-.animate-wobble { animation: wobble 1.4s ease-in-out infinite; }
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
-.animate-float { animation: float 2.4s ease-in-out infinite; }
-
 /* Contagem dos 3 segundos: cada numero explode na tela. */
 @keyframes count-pop {
   0% { transform: scale(2.4); opacity: 0; }
@@ -159,16 +161,24 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 .animate-count { animation: count-pop 1s ease-out both; }
 
-/* "+20 XP" que sobe e some ao marcar uma atividade. */
-@keyframes xp-float {
-  0% { transform: translateY(4px) scale(0.8); opacity: 0; }
-  20% { transform: translateY(-6px) scale(1.1); opacity: 1; }
-  100% { transform: translateY(-34px) scale(1); opacity: 0; }
+/* Assinatura: ao marcar feito, um traco de caneta cruza o item. */
+@keyframes pen-strike {
+  from { background-size: 0% 2px; }
+  to { background-size: 100% 2px; }
 }
-.animate-xp { animation: xp-float 1.1s ease-out both; }
+.strike {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 55%;
+  background-size: 100% 2px;
+}
+.strike-anim { animation: pen-strike 180ms ease-out both; }
+
+.font-display { letter-spacing: 0.01em; }
 
 @media (prefers-reduced-motion: reduce) {
-  .xp-fill, .animate-wobble, .animate-float, .animate-count, .animate-xp { animation: none; }
+  .strike-anim { animation: none; }
+  .animate-count { animation: none; }
   .animate-pop-in, .animate-rise, .animate-pulse-ring, .animate-star, .animate-glow {
     animation: none;
   }

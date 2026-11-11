@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button, Card, Header, Section, WeekdayPicker } from '../components/ui'
 import DataTransfer from '../components/DataTransfer'
+import CheckinSettings from '../components/CheckinSettings'
 import { useApp } from '../lib/store'
 import { isSupabaseConfigured, signInWithEmail, signOut } from '../lib/supabase'
 import { notificationPermission, requestNotificationPermission } from '../lib/timer'
@@ -60,7 +61,9 @@ export default function Settings() {
 
   return (
     <div>
-      <Header title="Ajustes" back="/" />
+      <Header title="Ajustes" back />
+
+      <CheckinSettings />
 
       <Section title="Sincronização">
         <Card className="p-4">

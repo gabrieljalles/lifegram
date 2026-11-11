@@ -1,0 +1,31 @@
+name: Migracoes do Supabase
+
+# Roda sozinho quando uma migracao nova chega no main. Tambem da para rodar
+# a mao na aba Actions (botao "Run workflow").
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/migrations/**', 'scripts/migrate.sh']
+  workflow_dispatch:
+
+# Uma de cada vez: duas execucoes juntas poderiam aplicar o mesmo arquivo.
+concurrency:
+  group: supabase-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aplicar migracoes novas
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        # Sem o segredo cadastrado, as migracoes sao coladas a mao no SQL
+        # Editor: o passo so avisa e sai sem erro.
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "SUPABASE_DB_URL nao cadastrado: aplique as migracoes a mao no SQL Editor."
+            exit 0
+          fi
+          bash scripts/migrate.sh

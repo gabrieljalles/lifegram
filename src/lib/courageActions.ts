@@ -13,6 +13,7 @@ import {
 import { attemptsOfGoal, clampScore, evaluateGoal } from './courage'
 import { emptyRow, registerAttempt, skipStep, type Rating } from './tracks'
 import { currentUserId } from './supabase'
+import { stageOf } from './rejections'
 import {
   newId,
   nowISO,
@@ -240,6 +241,18 @@ export async function undoLastRejection(): Promise<void> {
   const all = await allCourageRejections()
   const last = all[all.length - 1]
   if (last) await deleteCourageRejection(last.id)
+}
+
+/**
+ * Tira 1 de uma etapa do funil: apaga o registro mais recente dela. Devolve
+ * o que foi apagado (ou null se a etapa estava em zero).
+ */
+export async function removeLastOfStage(stage: FunnelStage): Promise<CourageRejection | null> {
+  const all = await allCourageRejections()
+  const last = [...all].reverse().find((item) => stageOf(item) === stage)
+  if (!last) return null
+  await deleteCourageRejection(last.id)
+  return last
 }
 
 /* --------------------------------------------------------------- trilha */

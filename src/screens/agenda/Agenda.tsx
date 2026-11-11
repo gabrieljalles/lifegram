@@ -4,7 +4,7 @@ import { addDays, format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { QuestRow } from '../../components/agenda-ui'
 import { Button, Card, EmptyState, Header, Section } from '../../components/ui'
-import { agendaOf, dayKey, describeWhen, streakOf, xpOf } from '../../lib/activities'
+import { agendaOf, dayKey, describeWhen, streakOf } from '../../lib/activities'
 import { useNow } from '../../lib/useNow'
 import { toggleActivity } from '../../lib/activityActions'
 import {
@@ -66,7 +66,6 @@ export default function Agenda() {
     .sort((a, b) => `${a.date}${a.time ?? ''}`.localeCompare(`${b.date}${b.time ?? ''}`))
 
   const doneCount = agenda.filter((o) => o.done).length
-  const xpDay = agenda.reduce((sum, o) => sum + (o.done ? xpOf(o, streaks.get(o.activity.id) ?? 0) : 0), 0)
   const canCheck = selected <= todayKey
 
   const toggle = async (activity: Activity) => {
@@ -82,7 +81,7 @@ export default function Agenda() {
         <EmptyState
           icon="🗓️"
           title="Nenhuma atividade ainda"
-          description="Crie hábitos que se repetem (ler uma página, seg a sex às 7h) ou compromissos de um dia só. Cada um vira uma missão com XP."
+          description="Crie hábitos que se repetem (ler uma página, seg a sex às 7h) ou compromissos de um dia só."
           action={<Button onClick={() => navigate('/agenda/nova')}>+ Nova atividade</Button>}
         />
         <GoogleCard activities={activities} onChange={reload} onSynced={loadGoogle} />
@@ -145,25 +144,24 @@ export default function Agenda() {
         <div className="mb-2 flex items-baseline justify-between">
           <h2 className="text-sm font-black uppercase tracking-widest text-ink-300">
             {selected === todayKey
-              ? 'Missões de hoje'
+              ? 'Hoje'
               : format(parseISO(selected), "EEEE, d 'de' MMM", { locale: ptBR })}
           </h2>
           <span className="tnum text-xs font-bold text-ink-400">
             {doneCount}/{agenda.length}
-            {xpDay > 0 && <span className="ml-2 text-pr-400">+{xpDay} XP</span>}
           </span>
         </div>
         {agenda.length > 0 && (
           <div
             className="mb-3 h-2.5 overflow-hidden rounded-full bg-ink-950/70 ring-1 ring-ink-700"
             role="progressbar"
-            aria-label="Missões feitas no dia"
+            aria-label="Itens feitos no dia"
             aria-valuemin={0}
             aria-valuemax={agenda.length}
             aria-valuenow={doneCount}
           >
             <div
-              className="xp-fill h-full rounded-full transition-[width] duration-500"
+              className="h-full rounded-full bg-brand-500 transition-[width] duration-500"
               style={{ width: `${(doneCount / agenda.length) * 100}%` }}
             />
           </div>
@@ -219,7 +217,7 @@ export default function Agenda() {
   )
 }
 
-/** Compromissos do Google no dia: so para ver, nao valem XP. */
+/** Compromissos do Google no dia: so para ver, so para ver. */
 function GoogleDay({ events }: { events: GcalEvent[] }) {
   return (
     <div className="mt-4">

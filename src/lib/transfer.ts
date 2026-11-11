@@ -71,9 +71,9 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: 'agenda',
-    label: 'Agenda',
-    hint: 'Atividades e o que foi feito',
-    tables: ['activities', 'activity_logs'],
+    label: 'Agenda e check-ins',
+    hint: 'Itens, o que foi feito e o fechamento de cada dia',
+    tables: ['activities', 'activity_logs', 'checkins'],
   },
   {
     id: 'financeiro',

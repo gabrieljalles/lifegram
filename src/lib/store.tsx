@@ -11,6 +11,7 @@ import {
   allActivities,
   allActivityLogs,
   allBodyWeightLogs,
+  allCheckins,
   allCourageAttempts,
   allCourageGoals,
   allCourageRejections,
@@ -39,6 +40,7 @@ import type {
   Activity,
   ActivityLog,
   AppSettings,
+  Checkin,
   CourageAttempt,
   CourageGoal,
   CourageRejection,
@@ -79,6 +81,7 @@ interface AppState {
   investmentQuotes: InvestmentQuote[]
   investmentSales: InvestmentSale[]
   motivationPhrases: MotivationPhrase[]
+  checkins: Checkin[]
   active: ActiveWorkout | null
   settings: AppSettings
   exerciseById: Map<ID, Exercise>
@@ -113,6 +116,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [investmentQuotes, setInvestmentQuotes] = useState<InvestmentQuote[]>([])
   const [investmentSales, setInvestmentSales] = useState<InvestmentSale[]>([])
   const [motivationPhrases, setMotivationPhrases] = useState<MotivationPhrase[]>([])
+  const [checkins, setCheckins] = useState<Checkin[]>([])
   const [active, setActiveState] = useState<ActiveWorkout | null>(null)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -140,6 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       quotes,
       sales,
       phrases,
+      closings,
       act,
       prefs,
       pending,
@@ -161,6 +166,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       allInvestmentQuotes(),
       allInvestmentSales(),
       allMotivationPhrases(),
+      allCheckins(),
       getActiveWorkout(),
       getSettings(),
       outboxCount(),
@@ -182,6 +188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setInvestmentQuotes(quotes)
     setInvestmentSales(sales)
     setMotivationPhrases(phrases)
+    setCheckins(closings)
     setActiveState(act ?? null)
     setSettings(prefs)
     setPendingCount(pending)
@@ -279,6 +286,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     investmentQuotes,
     investmentSales,
     motivationPhrases,
+    checkins,
     active,
     settings,
     exerciseById,

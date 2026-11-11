@@ -2,14 +2,15 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, EmptyState, Header, Section, WeekdayPicker } from '../../components/ui'
-import { ACTIVITY_ICONS, ACTIVITY_XP, COMBO_AT, dayKey, describeDays } from '../../lib/activities'
+import { ACTIVITY_ICONS, dayKey, describeDays } from '../../lib/activities'
 import { archiveActivity, saveActivity } from '../../lib/activityActions'
 import { templateUrl } from '../../lib/gcal'
 import { TRAVEL_OPTIONS, formatTravel, reminderPlan } from '../../lib/reminders'
 import { requestNotificationPermission } from '../../lib/timer'
 import { reminderChannel, type ReminderChannel } from '../../lib/useActivityReminders'
 import { useApp } from '../../lib/store'
-import type { Activity, ActivityKind, Weekday } from '../../lib/types'
+import { ITEM_TYPES, itemTypeOf } from '../../lib/items'
+import type { Activity, ActivityKind, ItemType, Weekday } from '../../lib/types'
 import { confirmDialog } from '../../lib/dialog'
 
 const PRESETS: Array<{ label: string; days: Weekday[] }> = [
@@ -30,6 +31,8 @@ export default function ActivityForm() {
   const { activities, reload } = useApp()
   const existing = activityId ? activities.find((a) => a.id === activityId) : undefined
 
+  const [itemType, setItemType] = useState<ItemType>(existing ? itemTypeOf(existing) : 'habito')
+  const [dose, setDose] = useState(existing?.dose ?? '')
   const [kind, setKind] = useState<ActivityKind>(existing?.kind ?? 'recorrente')
   const [title, setTitle] = useState(existing?.title ?? '')
   const [icon, setIcon] = useState(existing?.icon ?? ACTIVITY_ICONS[0])
@@ -61,6 +64,8 @@ export default function ActivityForm() {
         {
           title: title.trim(),
           icon,
+          item_type: itemType,
+          dose: itemType === 'remedio' && dose.trim() ? dose.trim() : null,
           kind,
           days: kind === 'recorrente' ? days : [],
           date: kind === 'esporadica' ? date : null,
@@ -81,7 +86,7 @@ export default function ActivityForm() {
     if (
       !(await confirmDialog({
         title: `Remover "${activity.title}"?`,
-        message: 'O XP que você já ganhou com ela continua.',
+        message: 'O histórico do que você já fez continua guardado.',
         confirmLabel: 'Remover',
         danger: true,
       }))
@@ -93,12 +98,11 @@ export default function ActivityForm() {
   }
 
   const gcalLink = existing ? templateUrl(existing) : null
-  const xp = ACTIVITY_XP[kind]
 
   return (
     <div>
       <Header
-        title={existing ? 'Editar atividade' : 'Nova atividade'}
+        title={existing ? 'Editar item' : 'Novo item'}
         back="/agenda"
         action={
           <Button size="sm" onClick={() => void save()} disabled={!valid || saving}>
@@ -107,7 +111,40 @@ export default function ActivityForm() {
         }
       />
 
-      <Section title="Tipo">
+      <Section title="O que é">
+        <div className="flex flex-wrap gap-1.5">
+          {ITEM_TYPES.filter((t) => t.id !== 'treino').map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={itemType === t.id}
+              onClick={() => {
+                setItemType(t.id)
+                // Icone ainda no padrao acompanha o tipo; escolhido a mao fica.
+                if (!existing && (icon === ACTIVITY_ICONS[0] || ITEM_TYPES.some((x) => x.icon === icon))) {
+                  setIcon(t.icon)
+                }
+                if (t.id === 'compromisso') setKind('esporadica')
+              }}
+              className={`min-h-[44px] rounded-full border-[1.5px] px-3.5 text-sm font-medium ${
+                itemType === t.id ? 'border-brand-400 bg-brand-400 text-ink-900' : 'border-ink-700'
+              }`}
+            >
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+        {itemType === 'remedio' && (
+          <input
+            value={dose}
+            onChange={(event) => setDose(event.target.value)}
+            placeholder="Dose: 2.000 UI, 5 g, 1 comprimido"
+            className={`${input} mt-2.5`}
+          />
+        )}
+      </Section>
+
+      <Section title="Repete?">
         <div className="grid grid-cols-2 gap-2">
           {(
             [
@@ -263,23 +300,6 @@ export default function ActivityForm() {
           </Card>
         </Section>
       )}
-
-      <Section title="Recompensa">
-        <Card className="flex items-center gap-3 p-4">
-          <span className="text-2xl" aria-hidden="true">
-            💰
-          </span>
-          <p className="text-sm text-ink-300">
-            <b className="text-pr-400">+{xp} XP</b> cada vez que cumprir.
-            {kind === 'recorrente' && (
-              <>
-                {' '}
-                Com <b className="text-fire-400">🔥 {COMBO_AT} seguidas</b> vira combo e o XP dobra.
-              </>
-            )}
-          </p>
-        </Card>
-      </Section>
 
       <div className="flex flex-col gap-2 px-4 pb-6 pt-2">
         <Button size="lg" onClick={() => void save()} disabled={!valid || saving}>

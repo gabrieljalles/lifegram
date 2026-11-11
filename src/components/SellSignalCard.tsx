@@ -14,13 +14,13 @@ export default function SellSignalCard() {
 
   return (
     <div className="px-4 pt-4">
-      <div className="rounded-2xl border-2 border-[#39ff88] bg-[#39ff88]/10 p-3.5 shadow-[0_0_18px_rgba(57,255,136,0.3)]">
+      <div className="rounded-2xl border-2 border-go-500 bg-go-500/10 p-3.5">
         <div className="flex items-center gap-3">
           <span className="text-2xl" aria-hidden="true">
             💰
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-widest text-[#39ff88]">
+            <p className="text-[10px] font-black uppercase tracking-widest text-go-400">
               Hora de considerar vender
             </p>
             <p className="text-xs text-ink-300">
@@ -46,7 +46,7 @@ export default function SellSignalCard() {
                   </span>
                 </span>
                 <span className="tnum shrink-0 text-right">
-                  <span className="block text-sm font-black text-[#39ff88]">
+                  <span className="block text-sm font-black text-go-400">
                     {formatSignedBRL(p.vsSelic)}
                   </span>
                   <span className="block text-[10px] text-ink-400">acima da meta ›</span>

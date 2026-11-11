@@ -5,6 +5,7 @@ import type {
   ActivityLog,
   AppSettings,
   BodyWeightLog,
+  Checkin,
   CourageAttempt,
   CourageGoal,
   CourageRejection,
@@ -60,6 +61,7 @@ interface WorkoutDB extends DBSchema {
   investment_quotes: { key: ID; value: InvestmentQuote; indexes: { by_asset: string } }
   investment_sales: { key: ID; value: InvestmentSale; indexes: { by_asset: string } }
   motivation_phrases: { key: ID; value: MotivationPhrase }
+  checkins: { key: ID; value: Checkin; indexes: { by_day: string } }
   /** Fila de sincronizacao: o que ainda nao subiu para o Supabase. */
   outbox: { key: number; value: OutboxEntry }
   /** Fotos como blob, garantindo imagem no exercicio mesmo offline. */
@@ -69,7 +71,7 @@ interface WorkoutDB extends DBSchema {
 }
 
 const DB_NAME = 'workout'
-const DB_VERSION = 9
+const DB_VERSION = 10
 
 let dbPromise: Promise<IDBPDatabase<WorkoutDB>> | null = null
 
@@ -143,6 +145,10 @@ export function db(): Promise<IDBPDatabase<WorkoutDB>> {
 
         if (oldVersion < 9) {
           database.createObjectStore('motivation_phrases', { keyPath: 'id' })
+        }
+
+        if (oldVersion < 10) {
+          database.createObjectStore('checkins', { keyPath: 'id' }).createIndex('by_day', 'day')
         }
       },
     })
@@ -514,6 +520,27 @@ export async function allMotivationPhrases(): Promise<MotivationPhrase[]> {
   return rows.filter((p) => !p.deleted).sort((a, b) => b.created_at.localeCompare(a.created_at))
 }
 
+export async function putCheckin(checkin: Checkin, { sync = true } = {}) {
+  const database = await db()
+  await database.put('checkins', checkin)
+  if (sync) await enqueue('checkins', checkin.id)
+}
+
+/**
+ * Check-ins ativos, um por dia (o mais recente vence se dois aparelhos
+ * gravaram o mesmo dia), do mais antigo para o mais novo.
+ */
+export async function allCheckins(): Promise<Checkin[]> {
+  const rows = await (await db()).getAll('checkins')
+  const byDay = new Map<string, Checkin>()
+  for (const row of rows) {
+    if (row.deleted) continue
+    const seen = byDay.get(row.day)
+    if (!seen || seen.updated_at < row.updated_at) byDay.set(row.day, row)
+  }
+  return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day))
+}
+
 export async function allInvestmentQuotes(): Promise<InvestmentQuote[]> {
   const rows = await (await db()).getAll('investment_quotes')
   return rows.sort((a, b) => a.quoted_on.localeCompare(b.quoted_on))
@@ -589,6 +616,7 @@ export interface Backup {
   investment_quotes?: InvestmentQuote[]
   investment_sales?: InvestmentSale[]
   motivation_phrases?: MotivationPhrase[]
+  checkins?: Checkin[]
 }
 
 export async function exportBackup(): Promise<Backup> {
@@ -612,6 +640,7 @@ export async function exportBackup(): Promise<Backup> {
     investment_quotes,
     investment_sales,
     motivation_phrases,
+    checkins,
   ] = await Promise.all([
     database.getAll('exercises'),
     database.getAll('routines'),
@@ -630,6 +659,7 @@ export async function exportBackup(): Promise<Backup> {
     database.getAll('investment_quotes'),
     database.getAll('investment_sales'),
     database.getAll('motivation_phrases'),
+    database.getAll('checkins'),
   ])
   return {
     version: 2,
@@ -652,6 +682,7 @@ export async function exportBackup(): Promise<Backup> {
     investment_quotes,
     investment_sales,
     motivation_phrases,
+    checkins,
   }
 }
 
@@ -687,6 +718,7 @@ export async function importBackup(backup: Backup): Promise<number> {
     'investment_quotes',
     'investment_sales',
     'motivation_phrases',
+    'checkins',
   ]
   for (const table of tables) {
     const rows = (backup[table] ?? []) as Array<{ id: ID; updated_at: string }>

@@ -4,7 +4,13 @@ import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import PRCelebration from '../../components/PRCelebration'
 import { Button, Card, EmptyState, Header, Section } from '../../components/ui'
-import { DataWarning, GoalBar, ScoreBadge, StatusChip } from '../../components/courage-ui'
+import {
+  ContextPicker,
+  DataWarning,
+  GoalBar,
+  ScoreBadge,
+  StatusChip,
+} from '../../components/courage-ui'
 import {
   attemptsOfGoal,
   attemptsPerWeek,
@@ -13,9 +19,13 @@ import {
   pendingOf,
   weeklyStreak,
 } from '../../lib/courage'
-import { addRejection, setRejectionContext, undoLastRejection } from '../../lib/courageActions'
-import ThreeSeconds from '../../components/ThreeSeconds'
-import { ContextPicker } from '../../components/game'
+import {
+  addRejection,
+  removeLastOfStage,
+  setRejectionContext,
+  undoLastRejection,
+} from '../../lib/courageActions'
+import { confirmDialog } from '../../lib/dialog'
 import {
   FUNNEL_STAGES,
   funnelStagesFor,
@@ -27,6 +37,7 @@ import {
   rejectionProgress,
   rejectionStreak,
   rejectionsThisWeek,
+  stageOf,
 } from '../../lib/rejections'
 import { CARISMA, currentStepId } from '../../lib/tracks'
 import { useApp } from '../../lib/store'
@@ -77,7 +88,6 @@ export default function CourageHome() {
     detail: string
   } | null>(null)
   const [savingNo, setSavingNo] = useState(false)
-  const [threeSeconds, setThreeSeconds] = useState(false)
   /** Ultimo registro do funil: recebe o "onde foi?" logo depois do toque. */
   const [last, setLast] = useState<{ id: string; context: FunnelContext | null } | null>(null)
   /** Janela curta de arrependimento: toque errado nao pode sujar a contagem. */
@@ -145,6 +155,28 @@ export default function CourageHome() {
     if (!last) return
     setLast({ ...last, context })
     await setRejectionContext(last.id, context)
+    await reload()
+  }
+
+  /** Tira 1 da etapa: apaga o registro mais recente dela, depois de confirmar. */
+  const diminuir = async (kind: FunnelStage) => {
+    const meta = FUNNEL_STAGES.find((stage) => stage.id === kind)!
+    const recent = [...courageRejections].reverse().find((item) => stageOf(item) === kind)
+    if (!recent) return
+    const ok = await confirmDialog({
+      title: `Tirar 1 de "${meta.label}"?`,
+      message: `Apaga o registro mais recente, de ${format(parseISO(recent.happened_at), "dd/MM 'às' HH:mm")}.`,
+      confirmLabel: 'Tirar 1',
+      danger: true,
+    })
+    if (!ok) return
+    if (last?.id === recent.id) {
+      if (undoTimer.current !== null) window.clearTimeout(undoTimer.current)
+      setUndoable(false)
+      setLast(null)
+    }
+    await removeLastOfStage(kind)
+    vibrate(30)
     await reload()
   }
 
@@ -263,29 +295,6 @@ export default function CourageHome() {
       />
 
 
-      {/* Colecao de naos: fica fora do bloco de objetivos de proposito —
-          contar "nao" nao depende de ter escada montada, e e o primeiro
-          passo de quem ainda nao criou nenhum degrau. */}
-      <div className="px-4 pt-4">
-        <button
-          type="button"
-          onClick={() => setThreeSeconds(true)}
-          className="game-card flex w-full items-center gap-3.5 rounded-3xl border-2 border-fire-500/60 p-4 text-left shadow-[0_0_28px_rgba(249,115,22,0.25)] transition-transform active:scale-[0.98]"
-        >
-          <span className="animate-float text-4xl" aria-hidden="true">
-            ⚡
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-lg font-black tracking-tight text-fire-400">
-              Regra dos 3 segundos
-            </span>
-            <span className="block text-xs leading-snug text-ink-300">
-              Viu alguém? Toca aqui, conta 3-2-1 e vai antes do medo montar a desculpa.
-            </span>
-          </span>
-        </button>
-      </div>
-
       {/* Frases que te marcaram: aparecem no topo da tela Hoje. */}
       <div className="px-4 pt-3">
         <button
@@ -316,14 +325,26 @@ export default function CourageHome() {
               const count = funil[stage.id]
               const above = index > 0 ? funil[stages[index - 1].id] : 0
               return (
-                <li key={stage.id} className="w-full">
+                <li
+                  key={stage.id}
+                  style={{ width: style.width }}
+                  className="mx-auto flex items-stretch gap-1.5"
+                >
+                  <button
+                    type="button"
+                    onClick={() => void diminuir(stage.id)}
+                    disabled={savingNo || count === 0}
+                    aria-label={`Tirar 1 de ${stage.label} (${count} até agora)`}
+                    className={`flex w-11 shrink-0 items-center justify-center rounded-xl border text-xl font-bold disabled:opacity-30 ${style.bar} ${style.text}`}
+                  >
+                    −
+                  </button>
                   <button
                     type="button"
                     onClick={() => void registrar(stage.id)}
                     disabled={savingNo}
                     aria-label={`${stage.action} (${count} até agora)`}
-                    style={{ width: style.width }}
-                    className={`mx-auto flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left transition-transform active:scale-[0.98] disabled:opacity-60 ${style.bar}`}
+                    className={`flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left transition-transform active:scale-[0.98] disabled:opacity-60 ${style.bar}`}
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-xs font-bold text-ink-100">
@@ -565,7 +586,6 @@ export default function CourageHome() {
         </>
       )}
 
-      {threeSeconds && <ThreeSeconds onClose={() => setThreeSeconds(false)} />}
       {celebration && (
         <PRCelebration
           icon={celebration.icon}
