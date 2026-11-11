@@ -66,7 +66,7 @@ const LOCAL_ONLY_FIELDS: Partial<Record<SyncTable, string[]>> = {
  * sincronizacao segue e o dado continua guardado neste aparelho.
  */
 const NEWER_FIELDS: Partial<Record<SyncTable, string[]>> = {
-  activities: ['item_type', 'dose'],
+  activities: ['item_type', 'dose', 'deadline', 'subtasks', 'completed_at'],
   routines: ['group_id'],
 }
 

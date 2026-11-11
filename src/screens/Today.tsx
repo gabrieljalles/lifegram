@@ -5,7 +5,15 @@ import { ptBR } from 'date-fns/locale'
 import MotivationCard from '../components/MotivationCard'
 import SellSignalCard from '../components/SellSignalCard'
 import { agendaOf, dayKey, type Occurrence } from '../lib/activities'
-import { toggleActivity } from '../lib/activityActions'
+import { toggleItem, toggleTaskStep } from '../lib/activityActions'
+import {
+  canComplete,
+  daysToDeadline,
+  deadlineLabel,
+  isTask,
+  progressOf,
+  subtasksOf,
+} from '../lib/tasks'
 import {
   DREAM_ASK_UNTIL_HOUR,
   DREAM_FACTOR,
@@ -27,6 +35,8 @@ import { useNow } from '../lib/useNow'
 import { startWorkout } from '../lib/workout'
 import { alertDialog } from '../lib/dialog'
 import type { Routine, RoutineGroup, Session } from '../lib/types'
+
+const OPEN_TASKS_KEY = 'hoje:tarefas-abertas'
 
 /** Uma linha da pagina: item da agenda, o treino do dia ou o check-in. */
 type Row =
@@ -125,8 +135,39 @@ export default function Today() {
   const night = now.getHours() >= 19 || now.getHours() < 4
   const anytimeLeft = anytime.filter((r) => !isDone(r)).length
 
+  // Tarefas abertas (subtarefas a mostra). Comeca tudo recolhido; lembra
+  // neste aparelho o que voce abriu.
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(OPEN_TASKS_KEY) ?? '[]') as string[])
+    } catch {
+      return new Set()
+    }
+  })
+  const flip = (id: string) =>
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      try {
+        localStorage.setItem(OPEN_TASKS_KEY, JSON.stringify([...next]))
+      } catch {
+        /* sem armazenamento: so nao lembra */
+      }
+      return next
+    })
+
+  const step = async (occ: Occurrence, stepId: string) => {
+    const finished = await toggleTaskStep(occ.activity, stepId)
+    if (finished) {
+      vibrate(40)
+      setJustDone(occ.activity.id)
+    } else vibrate(15)
+    await reload()
+  }
+
   const toggle = async (occ: Occurrence) => {
-    const done = await toggleActivity(occ.activity.id, occ.day)
+    const done = await toggleItem(occ.activity, occ.day)
     if (done) {
       vibrate(30)
       setJustDone(occ.activity.id)
@@ -162,8 +203,84 @@ export default function Today() {
     let late = false
     let action: ReactNode
     let onOpen: (() => void) | undefined
+    let steps: ReactNode = null
+    let chevron: boolean | null = null
 
-    if (row.kind === 'item') {
+    if (row.kind === 'item' && isTask(row.occ.activity)) {
+      const { occ } = row
+      const a = occ.activity
+      title = `${a.icon ? `${a.icon} ` : ''}${a.title}`
+      late = occ.late
+      const list = subtasksOf(a)
+      const { done: stepsDone, total } = progressOf(a)
+      const open = expanded.has(a.id)
+      const parts: string[] = []
+      if (total > 0) parts.push(`${stepsDone} de ${total} subtarefas`)
+      if (a.completed_at) parts.push('concluída')
+      else {
+        const due = deadlineLabel(daysToDeadline(a, now))
+        if (due) parts.push(due)
+      }
+      detail = parts.join(' · ') || null
+      if (total > 0) {
+        chevron = open
+        onOpen = () => flip(a.id)
+      } else onOpen = () => navigate(`/agenda/${a.id}`)
+      const once = a.kind === 'esporadica'
+      action =
+        once && !canComplete(a) ? (
+          <button
+            type="button"
+            onClick={() => flip(a.id)}
+            aria-label={`${stepsDone} de ${total} subtarefas. Abrir`}
+            className="tnum flex h-11 min-w-11 items-center justify-center rounded-full font-display text-sm font-bold text-ink-400 active:bg-ink-800"
+          >
+            {stepsDone}/{total}
+          </button>
+        ) : (
+          <Tick
+            done={done}
+            label={done ? `Desmarcar ${a.title}` : `Marcar ${a.title} como feito`}
+            onClick={() => void toggle(occ)}
+          />
+        )
+      if (open && total > 0) {
+        steps = (
+          <ul className="pb-2 pl-[76px] pr-4">
+            {list.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  onClick={() => void step(occ, s.id)}
+                  aria-pressed={s.done}
+                  className="flex min-h-[40px] w-full items-center gap-3 text-left text-sm"
+                >
+                  <span
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-[1.5px] text-[11px] font-bold ${
+                      s.done
+                        ? 'border-brand-400 bg-brand-400 text-ink-900'
+                        : 'border-ink-400 text-transparent'
+                    }`}
+                  >
+                    ✓
+                  </span>
+                  <span className={s.done ? 'strike text-ink-400' : ''}>{s.title}</span>
+                </button>
+              </li>
+            ))}
+            <li>
+              <button
+                type="button"
+                onClick={() => navigate(`/agenda/${a.id}`)}
+                className="min-h-[36px] text-xs font-semibold text-brand-400"
+              >
+                Editar tarefa ›
+              </button>
+            </li>
+          </ul>
+        )
+      }
+    } else if (row.kind === 'item') {
       const { occ } = row
       const a = occ.activity
       title = `${a.icon ? `${a.icon} ` : ''}${a.title}`
@@ -241,47 +358,58 @@ export default function Today() {
     const animate = row.kind === 'item' && justDone === row.occ.activity.id && done
 
     return (
-      <li key={key} className="relative flex min-h-[52px] items-center border-b border-ink-700">
-        {ribbon && (
+      <li key={key} className="relative border-b border-ink-700">
+        <div className="relative flex min-h-[52px] items-center">
+          {ribbon && (
+            <span
+              aria-hidden="true"
+              className="absolute left-[60.5px] top-1/2 z-10 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-margin ring-2 ring-ink-900"
+            />
+          )}
           <span
-            aria-hidden="true"
-            className="absolute -top-1.5 left-[61px] h-16 w-3 bg-margin"
-            style={{ clipPath: 'polygon(0 0,100% 0,100% 100%,50% 82%,0 100%)' }}
-          />
-        )}
-        <span className="tnum w-[60px] shrink-0 pl-4 font-display text-lg font-semibold text-ink-400">
-          {withHour ? timeOf(row) : ''}
-        </span>
-        <button
-          type="button"
-          onClick={onOpen}
-          disabled={!onOpen}
-          className="min-w-0 flex-1 py-2 pl-4 text-left"
-        >
-          <span
-            className={`inline text-base font-medium ${
-              done
-                ? `strike text-ink-400 ${animate ? 'strike-anim' : ''}`
-                : late
-                  ? 'underline decoration-margin decoration-double underline-offset-4'
-                  : ribbon
-                    ? 'bg-[linear-gradient(transparent_45%,var(--color-highlight)_45%,var(--color-highlight)_92%,transparent_92%)] px-0.5 text-highlight-ink'
-                    : !withHour
-                      ? 'border-b-[1.5px] border-dashed border-ink-400'
-                      : ''
+            className={`tnum w-[60px] shrink-0 pr-2.5 text-right font-display text-lg font-semibold ${
+              ribbon ? 'text-margin' : 'text-ink-400'
             }`}
           >
-            {title}
+            {withHour ? timeOf(row) : ''}
           </span>
-          {detail && (
+          <button
+            type="button"
+            onClick={onOpen}
+            disabled={!onOpen}
+            className="min-w-0 flex-1 py-2 pl-4 text-left"
+          >
             <span
-              className={`mt-0.5 block text-xs ${late && !done ? 'font-medium text-margin' : 'text-ink-400'}`}
+              className={`inline text-base font-medium ${
+                done
+                  ? `strike text-ink-400 ${animate ? 'strike-anim' : ''}`
+                  : late
+                    ? 'underline decoration-margin decoration-double underline-offset-4'
+                    : ribbon
+                      ? 'box-decoration-clone rounded bg-highlight px-1 text-highlight-ink'
+                      : !withHour
+                        ? 'border-b-[1.5px] border-dashed border-ink-400'
+                        : ''
+              }`}
             >
-              {detail}
+              {title}
             </span>
-          )}
-        </button>
-        <span className="flex w-[72px] shrink-0 justify-center">{action}</span>
+            {chevron != null && (
+              <span aria-hidden="true" className="ml-1.5 inline-block text-xs text-ink-400">
+                {chevron ? '▾' : '▸'}
+              </span>
+            )}
+            {detail && (
+              <span
+                className={`mt-0.5 block text-xs ${late && !done ? 'font-medium text-margin' : 'text-ink-400'}`}
+              >
+                {detail}
+              </span>
+            )}
+          </button>
+          <span className="flex w-[72px] shrink-0 justify-center">{action}</span>
+        </div>
+        {steps}
       </li>
     )
   }
@@ -384,7 +512,7 @@ export default function Today() {
         <span aria-hidden="true" className="absolute inset-y-0 left-[60px] w-px bg-margin/60" />
         {timed.map((row, i) => renderRow(row, i, true))}
         {anytime.length > 0 && (
-          <li className="flex h-[30px] items-end border-b border-ink-700 pb-1 pl-[76px] font-display text-sm font-bold uppercase tracking-widest text-margin">
+          <li className="relative z-10 mt-3 flex h-9 items-center border-y border-ink-700 bg-ink-950 pl-[76px] font-display text-sm font-bold uppercase tracking-widest text-ink-400">
             A qualquer hora{anytimeLeft > 0 && night ? ` · faltam ${anytimeLeft}` : ''}
           </li>
         )}

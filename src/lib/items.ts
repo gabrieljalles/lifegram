@@ -8,6 +8,7 @@ export const ITEM_TYPES: Array<{ id: ItemType; label: string; tag: string; icon:
   { id: 'habito', label: 'Hábito', tag: 'HÁBITO', icon: '⭐' },
   { id: 'remedio', label: 'Remédio ou suplemento', tag: 'REMÉDIO', icon: '💊' },
   { id: 'compromisso', label: 'Compromisso', tag: 'COMPROMISSO', icon: '📌' },
+  { id: 'tarefa', label: 'Tarefa ou objetivo', tag: 'TAREFA', icon: '🎯' },
   { id: 'coragem', label: 'Coragem', tag: 'CORAGEM', icon: '🦁' },
   { id: 'treino', label: 'Treino', tag: 'TREINO', icon: '🏋️' },
 ]

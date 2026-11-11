@@ -392,13 +392,7 @@ export type FunnelStage = 'nao' | 'sim' | 'encontro' | 'sexo'
 
 /** Onde a abordagem aconteceu — para descobrir onde voce converte mais. */
 export type FunnelContext =
-  | 'rua'
-  | 'festa'
-  | 'app'
-  | 'academia'
-  | 'trabalho'
-  | 'faculdade'
-  | 'outro'
+  'rua' | 'festa' | 'app' | 'academia' | 'trabalho' | 'faculdade' | 'outro'
 
 export interface CourageRejection {
   id: ID
@@ -464,7 +458,14 @@ export type ActivityKind = 'recorrente' | 'esporadica'
  * O que o item e na vida: decide o rotulo, a acao na tela Hoje e como ele
  * entra nos Padroes. Linhas antigas nao tem o campo: leia por `itemTypeOf`.
  */
-export type ItemType = 'compromisso' | 'habito' | 'remedio' | 'treino' | 'coragem'
+export type ItemType = 'compromisso' | 'habito' | 'remedio' | 'treino' | 'coragem' | 'tarefa'
+
+/** Passo de uma tarefa: o que falta para chegar ao objetivo. */
+export interface Subtask {
+  id: ID
+  title: string
+  done: boolean
+}
 
 export interface Activity {
   id: ID
@@ -496,6 +497,15 @@ export interface Activity {
   item_type?: ItemType | null
   /** Dose do remedio ou suplemento ("2.000 UI", "5 g"). Migracao 017. */
   dose?: string | null
+  /**
+   * Prazo (YYYY-MM-DD) da tarefa. A recorrente aparece nos dias dela ate o
+   * prazo; passou e nao concluiu, aparece todo dia cobrando. Migracao 019.
+   */
+  deadline?: string | null
+  /** Passos da tarefa, na ordem. Migracao 019. */
+  subtasks?: Subtask[] | null
+  /** Tarefa concluida: some da agenda depois deste dia. Migracao 019. */
+  completed_at?: string | null
   created_at: string
   updated_at: string
 }

@@ -34,21 +34,24 @@ export default function Patterns() {
 
   const consistency = useMemo(() => {
     const done = new Set(activityLogs.map((l) => `${l.activity_id}|${l.day}`))
-    return activities
-      .filter((a) => !a.archived)
-      .map((a) => {
-        let due = 0
-        let hit = 0
-        for (let i = 0; i < WINDOW; i++) {
-          const date = addDays(today, -i)
-          if (!occursOn(a, date)) continue
-          due++
-          if (done.has(`${a.id}|${dayKey(date)}`)) hit++
-        }
-        return { activity: a, due, hit }
-      })
-      .filter((r) => r.due > 0)
-      .sort((a, b) => b.hit / b.due - a.hit / a.due)
+    return (
+      activities
+        // Tarefa de uma vez aparece todo dia ate fechar: nao e constancia.
+        .filter((a) => !a.archived && !(a.item_type === 'tarefa' && a.kind === 'esporadica'))
+        .map((a) => {
+          let due = 0
+          let hit = 0
+          for (let i = 0; i < WINDOW; i++) {
+            const date = addDays(today, -i)
+            if (!occursOn(a, date)) continue
+            due++
+            if (done.has(`${a.id}|${dayKey(date)}`)) hit++
+          }
+          return { activity: a, due, hit }
+        })
+        .filter((r) => r.due > 0)
+        .sort((a, b) => b.hit / b.due - a.hit / a.due)
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activities, activityLogs, dayKey(today)])
 

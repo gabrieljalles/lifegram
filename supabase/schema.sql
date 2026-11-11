@@ -527,3 +527,8 @@ create policy routine_groups_owner on public.routine_groups
 
 -- Sem chave estrangeira de proposito: o treino pode subir antes do grupo.
 alter table public.routines add column if not exists group_id uuid;
+
+-- 019_tarefas
+alter table public.activities add column if not exists deadline date;
+alter table public.activities add column if not exists subtasks jsonb not null default '[]'::jsonb;
+alter table public.activities add column if not exists completed_at timestamptz;

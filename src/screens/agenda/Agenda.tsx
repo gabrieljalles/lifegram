@@ -6,7 +6,8 @@ import { QuestRow } from '../../components/agenda-ui'
 import { Button, Card, EmptyState, Header, Section } from '../../components/ui'
 import { agendaOf, dayKey, describeWhen, streakOf } from '../../lib/activities'
 import { useNow } from '../../lib/useNow'
-import { toggleActivity } from '../../lib/activityActions'
+import { toggleItem } from '../../lib/activityActions'
+import { isTask } from '../../lib/tasks'
 import {
   cachedGcalEvents,
   connectGcal,
@@ -60,16 +61,19 @@ export default function Agenda() {
     [live, activityLogs, now],
   )
 
-  const recurring = live.filter((a) => a.kind === 'recorrente')
+  const tasks = live
+    .filter((a) => isTask(a) && !a.completed_at)
+    .sort((a, b) => (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999'))
+  const recurring = live.filter((a) => a.kind === 'recorrente' && !isTask(a))
   const sporadic = live
-    .filter((a) => a.kind === 'esporadica' && (a.date ?? '') >= todayKey)
+    .filter((a) => a.kind === 'esporadica' && !isTask(a) && (a.date ?? '') >= todayKey)
     .sort((a, b) => `${a.date}${a.time ?? ''}`.localeCompare(`${b.date}${b.time ?? ''}`))
 
   const doneCount = agenda.filter((o) => o.done).length
   const canCheck = selected <= todayKey
 
   const toggle = async (activity: Activity) => {
-    const done = await toggleActivity(activity.id, selected)
+    const done = await toggleItem(activity, selected)
     if (done) vibrate(40)
     await reload()
   }
@@ -168,9 +172,11 @@ export default function Agenda() {
         )}
 
         {agenda.length === 0 ? (
-          googleDay.length === 0 && <p className="rounded-2xl border border-dashed border-ink-700 p-4 text-center text-sm text-ink-400">
-            Dia livre. Nada marcado.
-          </p>
+          googleDay.length === 0 && (
+            <p className="rounded-2xl border border-dashed border-ink-700 p-4 text-center text-sm text-ink-400">
+              Dia livre. Nada marcado.
+            </p>
+          )
         ) : (
           <div className="flex flex-col gap-2">
             {agenda.map((occ) => (
@@ -193,6 +199,15 @@ export default function Agenda() {
 
         {googleDay.length > 0 && <GoogleDay events={googleDay} />}
       </section>
+
+      <Section title={`Tarefas · ${tasks.length}`}>
+        <CatalogList
+          items={tasks}
+          streaks={streaks}
+          empty="Nenhuma tarefa aberta."
+          onOpen={(a) => navigate(`/agenda/${a.id}`)}
+        />
+      </Section>
 
       <Section title={`Recorrentes · ${recurring.length}`}>
         <CatalogList
@@ -281,7 +296,9 @@ function CatalogList({
               <span className="block truncate text-sm font-semibold">{activity.title}</span>
               <span className="tnum block text-xs text-ink-400">{describeWhen(activity)}</span>
             </span>
-            {streak > 0 && <span className="tnum text-xs font-black text-fire-400">🔥{streak}</span>}
+            {streak > 0 && (
+              <span className="tnum text-xs font-black text-fire-400">🔥{streak}</span>
+            )}
             {activity.gcal_event_id && (
               <span className="text-xs" title="No Google Agenda" aria-label="No Google Agenda">
                 📅
@@ -336,7 +353,9 @@ function GoogleCard({
       else if (result.error) setMessage(`Falhou: ${result.error}`)
       else {
         const total = result.created + result.updated + result.removed
-        setMessage(total === 0 ? 'Tudo já estava na agenda.' : `${total} evento(s) atualizados no Google.`)
+        setMessage(
+          total === 0 ? 'Tudo já estava na agenda.' : `${total} evento(s) atualizados no Google.`,
+        )
       }
       await onChange()
       await onSynced()
@@ -370,8 +389,8 @@ function GoogleCard({
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold">{linked ? 'Conectado' : 'Não conectado'}</p>
             <p className="text-xs text-ink-400">
-              Cada atividade vira um evento na sua agenda principal, com repetição e aviso do Google.
-              Seus outros compromissos aparecem aqui na Agenda.
+              Cada atividade vira um evento na sua agenda principal, com repetição e aviso do
+              Google. Seus outros compromissos aparecem aqui na Agenda.
             </p>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { addDays, format, parseISO } from 'date-fns'
+import { deadlineLabel, daysToDeadline, isTask } from './tasks'
 import type { Activity, ActivityLog, Weekday } from './types'
 
 /**
@@ -8,13 +9,34 @@ import type { Activity, ActivityLog, Weekday } from './types'
  * agenda e os testes calcularem exatamente a mesma coisa.
  */
 
-export const ACTIVITY_ICONS = ['📖', '🧘', '💧', '🏃', '🎸', '🧠', '✍️', '🧹', '💊', '📞', '🦷', '⭐']
+export const ACTIVITY_ICONS = [
+  '📖',
+  '🧘',
+  '💧',
+  '🏃',
+  '🎸',
+  '🧠',
+  '✍️',
+  '🧹',
+  '💊',
+  '📞',
+  '🦷',
+  '⭐',
+]
 
 export const dayKey = (date: Date): string => format(date, 'yyyy-MM-dd')
 
 /** Ignora `archived` de proposito: o historico antigo continua contando. */
 export function occursOn(activity: Activity, date: Date): boolean {
   const key = dayKey(date)
+  if (isTask(activity)) {
+    // Concluida: aparece riscada no dia em que fechou, depois some.
+    if (activity.completed_at && key > dayKey(parseISO(activity.completed_at))) return false
+    if (key < activity.starts_on) return false
+    if (activity.kind === 'esporadica') return true
+    if (activity.deadline && key > activity.deadline) return true
+    return activity.days.includes(date.getDay() as Weekday)
+  }
   if (activity.kind === 'esporadica') return activity.date === key
   return key >= activity.starts_on && activity.days.includes(date.getDay() as Weekday)
 }
@@ -63,7 +85,13 @@ export function agendaOf(
         day,
         at,
         done: isDone,
-        late: !isDone && (at ? at < now : day < dayKey(now)),
+        late:
+          !isDone &&
+          (isTask(activity)
+            ? activity.deadline != null && activity.deadline < day
+            : at
+              ? at < now
+              : day < dayKey(now)),
       }
     })
     .sort((a, b) => {
@@ -135,8 +163,13 @@ export function describeDays(days: Weekday[]): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-export function describeWhen(activity: Activity): string {
+export function describeWhen(activity: Activity, now = new Date()): string {
   const time = activity.time ?? 'qualquer hora'
+  if (isTask(activity)) {
+    const when = activity.kind === 'recorrente' ? describeDays(activity.days) : 'Até concluir'
+    const due = deadlineLabel(daysToDeadline(activity, now))
+    return [when, activity.time, due].filter(Boolean).join(' · ')
+  }
   if (activity.kind === 'recorrente') return `${describeDays(activity.days)} · ${time}`
   const date = activity.date ? format(parseISO(activity.date), 'dd/MM') : '—'
   return `${date} · ${time}`
