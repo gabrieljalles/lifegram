@@ -10,7 +10,16 @@ import {
   startOfYear,
   subDays,
 } from 'date-fns'
-import type { AppSettings, Exercise, Routine, Session, SetLog, Weekday } from './types'
+import { scheduledDaysOf } from './plan'
+import type {
+  AppSettings,
+  Exercise,
+  Routine,
+  RoutineGroup,
+  Session,
+  SetLog,
+  Weekday,
+} from './types'
 
 /* --------------------------------------------------------- fundamentais */
 
@@ -405,7 +414,9 @@ export function setLabel(
 ): string {
   const seconds = log.duration_seconds ?? null
   if (seconds !== null) {
-    return log.weight !== 0 ? `${formatWeight(log.weight)} kg · ${formatClock(seconds)}` : formatClock(seconds)
+    return log.weight !== 0
+      ? `${formatWeight(log.weight)} kg · ${formatClock(seconds)}`
+      : formatClock(seconds)
   }
   return withUnit
     ? `${formatWeight(log.weight)} kg × ${log.reps}`
@@ -531,16 +542,12 @@ export interface Schedule {
 export function scheduleOf(
   routines: Routine[],
   settings: Pick<AppSettings, 'rest_days'>,
+  groups: RoutineGroup[] = [],
 ): Schedule {
   const rest = new Set<Weekday>(settings.rest_days)
-  const due = new Set<Weekday>()
-  for (const routine of routines) {
-    if (routine.archived) continue
-    for (const day of routine.scheduled_days ?? []) {
-      if (!rest.has(day)) due.add(day)
-    }
-  }
-  return { dueDays: [...due].sort(), restDays: [...rest].sort() }
+  // Treino de grupo segue os dias do grupo, nao os proprios.
+  const due = scheduledDaysOf(routines, groups).filter((day) => !rest.has(day))
+  return { dueDays: due, restDays: [...rest].sort() }
 }
 
 /** Treinos marcados para um dia da semana, na ordem em que aparecem na Home. */

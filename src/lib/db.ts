@@ -20,6 +20,7 @@ import type {
   OutboxEntry,
   Routine,
   RoutineExercise,
+  RoutineGroup,
   Session,
   SetLog,
   SyncTable,
@@ -62,6 +63,7 @@ interface WorkoutDB extends DBSchema {
   investment_sales: { key: ID; value: InvestmentSale; indexes: { by_asset: string } }
   motivation_phrases: { key: ID; value: MotivationPhrase }
   checkins: { key: ID; value: Checkin; indexes: { by_day: string } }
+  routine_groups: { key: ID; value: RoutineGroup }
   /** Fila de sincronizacao: o que ainda nao subiu para o Supabase. */
   outbox: { key: number; value: OutboxEntry }
   /** Fotos como blob, garantindo imagem no exercicio mesmo offline. */
@@ -71,7 +73,7 @@ interface WorkoutDB extends DBSchema {
 }
 
 const DB_NAME = 'workout'
-const DB_VERSION = 10
+const DB_VERSION = 11
 
 let dbPromise: Promise<IDBPDatabase<WorkoutDB>> | null = null
 
@@ -149,6 +151,10 @@ export function db(): Promise<IDBPDatabase<WorkoutDB>> {
 
         if (oldVersion < 10) {
           database.createObjectStore('checkins', { keyPath: 'id' }).createIndex('by_day', 'day')
+        }
+
+        if (oldVersion < 11) {
+          database.createObjectStore('routine_groups', { keyPath: 'id' })
         }
       },
     })
@@ -232,6 +238,20 @@ export async function allRoutines(includeArchived = false): Promise<Routine[]> {
       .map((r) => ({ ...r, scheduled_days: r.scheduled_days ?? [] }))
       .sort((a, b) => a.position - b.position)
   )
+}
+
+export async function putRoutineGroup(g: RoutineGroup, { sync = true } = {}) {
+  const database = await db()
+  await database.put('routine_groups', g)
+  if (sync) await enqueue('routine_groups', g.id)
+}
+
+export async function allRoutineGroups(): Promise<RoutineGroup[]> {
+  const rows = await (await db()).getAll('routine_groups')
+  return rows
+    .filter((g) => !g.archived)
+    .map((g) => ({ ...g, scheduled_days: g.scheduled_days ?? [] }))
+    .sort((a, b) => a.position - b.position)
 }
 
 export async function putRoutineExercise(re: RoutineExercise, { sync = true } = {}) {
@@ -617,6 +637,7 @@ export interface Backup {
   investment_sales?: InvestmentSale[]
   motivation_phrases?: MotivationPhrase[]
   checkins?: Checkin[]
+  routine_groups?: RoutineGroup[]
 }
 
 export async function exportBackup(): Promise<Backup> {
@@ -641,6 +662,7 @@ export async function exportBackup(): Promise<Backup> {
     investment_sales,
     motivation_phrases,
     checkins,
+    routine_groups,
   ] = await Promise.all([
     database.getAll('exercises'),
     database.getAll('routines'),
@@ -660,6 +682,7 @@ export async function exportBackup(): Promise<Backup> {
     database.getAll('investment_sales'),
     database.getAll('motivation_phrases'),
     database.getAll('checkins'),
+    database.getAll('routine_groups'),
   ])
   return {
     version: 2,
@@ -683,6 +706,7 @@ export async function exportBackup(): Promise<Backup> {
     investment_sales,
     motivation_phrases,
     checkins,
+    routine_groups,
   }
 }
 
@@ -719,6 +743,7 @@ export async function importBackup(backup: Backup): Promise<number> {
     'investment_sales',
     'motivation_phrases',
     'checkins',
+    'routine_groups',
   ]
   for (const table of tables) {
     const rows = (backup[table] ?? []) as Array<{ id: ID; updated_at: string }>

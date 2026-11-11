@@ -31,7 +31,8 @@ import { confirmDialog } from '../../lib/dialog'
 export default function RoutineEditor() {
   const { routineId } = useParams()
   const navigate = useNavigate()
-  const { routines, routineExercises, exercises, exerciseById, settings, reload } = useApp()
+  const { routines, routineGroups, routineExercises, exercises, exerciseById, settings, reload } =
+    useApp()
   const [picking, setPicking] = useState(false)
 
   const routine = routines.find((r) => r.id === routineId)
@@ -54,6 +55,13 @@ export default function RoutineEditor() {
 
   const rename = async (name: string) => {
     await putRoutine({ ...routine, name, updated_at: nowISO() })
+    await reload()
+  }
+
+  const group = routineGroups.find((g) => g.id === routine.group_id) ?? null
+
+  const setGroup = async (group_id: string | null) => {
+    await putRoutine({ ...routine, group_id, updated_at: nowISO() })
     await reload()
   }
 
@@ -136,14 +144,14 @@ export default function RoutineEditor() {
       return
     await putRoutine({ ...routine, archived: true, updated_at: nowISO() })
     await reload()
-    navigate('/treinos')
+    navigate(group ? `/treinos/grupo/${group.id}` : '/treinos')
   }
 
   return (
     <div>
       <Header
         title={routine.name}
-        back="/treinos"
+        back={group ? `/treinos/grupo/${group.id}` : '/treinos'}
         action={
           <Button size="sm" onClick={() => setPicking(true)}>
             + Exercício
@@ -159,26 +167,57 @@ export default function RoutineEditor() {
         />
       </Section>
 
-      <Section title="Dias da semana">
-        <Card className="p-4">
-          <WeekdayPicker
-            value={routine.scheduled_days}
-            onChange={(days) => void setDays(days)}
-            disabled={settings.rest_days}
-          />
-          <p className="mt-2.5 text-[11px] leading-relaxed text-ink-400">
-            {routine.scheduled_days.length === 0
-              ? 'Sem dia marcado: este treino fica disponível quando você quiser e nunca cobra nada da sua corrente.'
-              : `Cobrado em ${listDays(routine.scheduled_days)}. Faltar num dia cobrado zera a corrente.`}
-          </p>
-          {routine.scheduled_days.some((day) => settings.rest_days.includes(day)) && (
-            <p className="mt-1.5 text-[11px] leading-relaxed text-pr-400">
-              Alguns desses dias estão marcados como descanso nos Ajustes — neles o treino aparece
-              como sugestão, mas não cobra.
+      {routineGroups.length > 0 && (
+        <Section title="Grupo">
+          <div className="flex flex-wrap gap-2">
+            {[{ id: null, name: 'Avulso' }, ...routineGroups].map((g) => {
+              const on = (group?.id ?? null) === g.id
+              return (
+                <button
+                  key={g.id ?? 'avulso'}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => void setGroup(g.id)}
+                  className={`min-h-[40px] rounded-full px-3.5 text-sm ${
+                    on ? 'bg-brand-600 font-bold text-white' : 'border border-ink-600'
+                  }`}
+                >
+                  {g.name}
+                </button>
+              )
+            })}
+          </div>
+          {group && (
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
+              Os dias vêm do grupo {group.name}. Nesses dias o app recomenda o treino do grupo feito
+              há mais tempo.
             </p>
           )}
-        </Card>
-      </Section>
+        </Section>
+      )}
+
+      {!group && (
+        <Section title="Dias da semana">
+          <Card className="p-4">
+            <WeekdayPicker
+              value={routine.scheduled_days}
+              onChange={(days) => void setDays(days)}
+              disabled={settings.rest_days}
+            />
+            <p className="mt-2.5 text-[11px] leading-relaxed text-ink-400">
+              {routine.scheduled_days.length === 0
+                ? 'Sem dia marcado: este treino fica disponível quando você quiser e nunca cobra nada da sua corrente.'
+                : `Cobrado em ${listDays(routine.scheduled_days)}. Faltar num dia cobrado zera a corrente.`}
+            </p>
+            {routine.scheduled_days.some((day) => settings.rest_days.includes(day)) && (
+              <p className="mt-1.5 text-[11px] leading-relaxed text-pr-400">
+                Alguns desses dias estão marcados como descanso nos Ajustes — neles o treino aparece
+                como sugestão, mas não cobra.
+              </p>
+            )}
+          </Card>
+        </Section>
+      )}
 
       <Section title={`Exercícios (${items.length})`}>
         {items.length === 0 ? (

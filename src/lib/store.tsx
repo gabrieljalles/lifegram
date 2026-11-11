@@ -12,6 +12,7 @@ import {
   allActivityLogs,
   allBodyWeightLogs,
   allCheckins,
+  allRoutineGroups,
   allCourageAttempts,
   allCourageGoals,
   allCourageRejections,
@@ -41,6 +42,7 @@ import type {
   ActivityLog,
   AppSettings,
   Checkin,
+  RoutineGroup,
   CourageAttempt,
   CourageGoal,
   CourageRejection,
@@ -82,6 +84,7 @@ interface AppState {
   investmentSales: InvestmentSale[]
   motivationPhrases: MotivationPhrase[]
   checkins: Checkin[]
+  routineGroups: RoutineGroup[]
   active: ActiveWorkout | null
   settings: AppSettings
   exerciseById: Map<ID, Exercise>
@@ -117,6 +120,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [investmentSales, setInvestmentSales] = useState<InvestmentSale[]>([])
   const [motivationPhrases, setMotivationPhrases] = useState<MotivationPhrase[]>([])
   const [checkins, setCheckins] = useState<Checkin[]>([])
+  const [routineGroups, setRoutineGroups] = useState<RoutineGroup[]>([])
   const [active, setActiveState] = useState<ActiveWorkout | null>(null)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -145,6 +149,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       sales,
       phrases,
       closings,
+      groups,
       act,
       prefs,
       pending,
@@ -167,6 +172,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       allInvestmentSales(),
       allMotivationPhrases(),
       allCheckins(),
+      allRoutineGroups(),
       getActiveWorkout(),
       getSettings(),
       outboxCount(),
@@ -189,6 +195,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setInvestmentSales(sales)
     setMotivationPhrases(phrases)
     setCheckins(closings)
+    setRoutineGroups(groups)
     setActiveState(act ?? null)
     setSettings(prefs)
     setPendingCount(pending)
@@ -287,6 +294,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     investmentSales,
     motivationPhrases,
     checkins,
+    routineGroups,
     active,
     settings,
     exerciseById,

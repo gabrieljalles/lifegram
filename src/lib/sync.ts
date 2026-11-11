@@ -28,6 +28,8 @@ const TABLES: SyncTable[] = [
   'motivation_phrases',
   // Migracao 017.
   'checkins',
+  // Migracao 018.
+  'routine_groups',
 ]
 
 /** routine_exercises herda a dona pela rotina, entao nao carrega user_id. */
@@ -50,6 +52,7 @@ const HAS_USER_ID: Record<SyncTable, boolean> = {
   investment_sales: true,
   motivation_phrases: true,
   checkins: true,
+  routine_groups: true,
 }
 
 /** Campos que so existem no cliente e nao devem viajar para o Postgres. */
@@ -64,6 +67,7 @@ const LOCAL_ONLY_FIELDS: Partial<Record<SyncTable, string[]>> = {
  */
 const NEWER_FIELDS: Partial<Record<SyncTable, string[]>> = {
   activities: ['item_type', 'dose'],
+  routines: ['group_id'],
 }
 
 const lastPulledKey = (table: SyncTable) => `sync:lastPulled:${table}`

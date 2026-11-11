@@ -20,18 +20,25 @@ import {
 } from '../lib/checkin'
 import { itemTypeOf } from '../lib/items'
 import { travelOf } from '../lib/reminders'
-import { routinesForDay } from '../lib/stats'
+import { planForDay } from '../lib/plan'
 import { useApp } from '../lib/store'
 import { vibrate } from '../lib/timer'
 import { useNow } from '../lib/useNow'
 import { startWorkout } from '../lib/workout'
 import { alertDialog } from '../lib/dialog'
-import type { Routine, Session, Weekday } from '../lib/types'
+import type { Routine, RoutineGroup, Session } from '../lib/types'
 
 /** Uma linha da pagina: item da agenda, o treino do dia ou o check-in. */
 type Row =
   | { kind: 'item'; occ: Occurrence }
-  | { kind: 'treino'; routine: Routine | null; session: Session | null; time: string | null }
+  | {
+      kind: 'treino'
+      key: string
+      group: RoutineGroup | null
+      routine: Routine | null
+      session: Session | null
+      time: string | null
+    }
   | { kind: 'checkin'; time: string; done: boolean }
 
 const timeOf = (row: Row): string | null => (row.kind === 'item' ? row.occ.activity.time : row.time)
@@ -47,6 +54,7 @@ export default function Today() {
     activities,
     activityLogs,
     routines,
+    routineGroups,
     sessions,
     checkins,
     settings,
@@ -64,21 +72,17 @@ export default function Today() {
     [activities, activityLogs, now],
   )
 
-  // O treino do dia vem das rotinas (dias marcados), nao da agenda.
-  const workout = useMemo(() => {
-    const session =
-      sessions.find(
-        (s) => s.finished_at && format(parseISO(s.started_at), 'yyyy-MM-dd') === today,
-      ) ?? null
-    const routine = routinesForDay(routines, now.getDay() as Weekday)[0] ?? null
-    if (!session && !routine) return null
-    return {
-      kind: 'treino' as const,
-      routine,
-      session,
-      time: session ? format(parseISO(session.started_at), 'HH:mm') : null,
-    }
-  }, [sessions, routines, today, now])
+  // Os treinos do dia vem das rotinas: um por grupo (rodizio) e os avulsos.
+  const workouts = useMemo(
+    () =>
+      planForDay(routines, routineGroups, sessions, now).map((item) => ({
+        kind: 'treino' as const,
+        ...item,
+        time: item.session ? format(parseISO(item.session.started_at), 'HH:mm') : null,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sessions, routines, routineGroups, today],
+  )
 
   const checkinTime = checkinTimeOf(settings)
   const closing = closingDay(now)
@@ -101,10 +105,10 @@ export default function Today() {
     const list: Row[] = occurrences
       .filter((occ) => itemTypeOf(occ.activity) !== 'treino')
       .map((occ) => ({ kind: 'item', occ }))
-    if (workout) list.push(workout)
+    list.push(...workouts)
     list.push({ kind: 'checkin', time: checkinTime, done: closedToday })
     return list
-  }, [occurrences, workout, checkinTime, closedToday])
+  }, [occurrences, workouts, checkinTime, closedToday])
 
   const timed = rows
     .filter((r) => timeOf(r))
@@ -194,17 +198,26 @@ export default function Today() {
       )
     } else if (row.kind === 'treino') {
       title = `🏋️ ${row.session?.routine_name || row.routine?.name || 'Treino'}`
+      const group = row.group?.name
       if (row.session) {
-        detail = `${Math.round(row.session.duration_seconds / 60)} min`
+        detail = [group, `${Math.round(row.session.duration_seconds / 60)} min`]
+          .filter(Boolean)
+          .join(' · ')
         onOpen = () => navigate(`/resumo/${row.session!.id}`)
         action = (
           <Tick done label="Treino feito" onClick={() => navigate(`/resumo/${row.session!.id}`)} />
         )
       } else {
-        detail = active ? 'Em andamento' : null
+        const running = Boolean(active) && active?.routine_id === row.routine?.id
+        detail = running ? 'Em andamento' : group ? `${group} · próximo do rodízio` : null
+        if (row.group) onOpen = () => navigate(`/treinos/grupo/${row.group!.id}`)
+        else if (row.routine) onOpen = () => navigate(`/treinos/${row.routine!.id}`)
         action = (
-          <Pill disabled={busy} onClick={() => void begin(row.routine)}>
-            {active ? 'Voltar' : 'Iniciar'}
+          <Pill
+            disabled={busy || (Boolean(active) && !running)}
+            onClick={() => void begin(row.routine)}
+          >
+            {running ? 'Voltar' : 'Iniciar'}
           </Pill>
         )
       }
@@ -223,7 +236,8 @@ export default function Today() {
       )
     }
 
-    const key = row.kind === 'item' ? row.occ.activity.id : row.kind
+    const key =
+      row.kind === 'item' ? row.occ.activity.id : row.kind === 'treino' ? row.key : row.kind
     const animate = row.kind === 'item' && justDone === row.occ.activity.id && done
 
     return (
