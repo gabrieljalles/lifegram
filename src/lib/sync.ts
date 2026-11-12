@@ -26,10 +26,6 @@ const TABLES: SyncTable[] = [
   'investment_sales',
   // Migracao 015.
   'motivation_phrases',
-  // Migracao 017.
-  'checkins',
-  // Migracao 018.
-  'routine_groups',
 ]
 
 /** routine_exercises herda a dona pela rotina, entao nao carrega user_id. */
@@ -51,23 +47,11 @@ const HAS_USER_ID: Record<SyncTable, boolean> = {
   investment_quotes: true,
   investment_sales: true,
   motivation_phrases: true,
-  checkins: true,
-  routine_groups: true,
 }
 
 /** Campos que so existem no cliente e nao devem viajar para o Postgres. */
 const LOCAL_ONLY_FIELDS: Partial<Record<SyncTable, string[]>> = {
   exercises: ['photo_local_key'],
-}
-
-/**
- * Colunas novas que o Supabase pode ainda nao ter (migracao nao rodada). Se o
- * envio falhar por coluna desconhecida, reenvia sem elas: o resto da
- * sincronizacao segue e o dado continua guardado neste aparelho.
- */
-const NEWER_FIELDS: Partial<Record<SyncTable, string[]>> = {
-  activities: ['item_type', 'dose', 'deadline', 'subtasks', 'completed_at'],
-  routines: ['group_id'],
 }
 
 const lastPulledKey = (table: SyncTable) => `sync:lastPulled:${table}`
@@ -169,16 +153,7 @@ async function pushOutbox(userId: string): Promise<number> {
       }
 
       if (rows.length > 0) {
-        let { error } = await supabase!.from(table).upsert(rows, { onConflict: 'id' })
-        const newer = NEWER_FIELDS[table]
-        if (error && error.code === 'PGRST204' && newer) {
-          const older = rows.map((row) => {
-            const copy = { ...row }
-            for (const field of newer) delete copy[field]
-            return copy
-          })
-          ;({ error } = await supabase!.from(table).upsert(older, { onConflict: 'id' }))
-        }
+        const { error } = await supabase!.from(table).upsert(rows, { onConflict: 'id' })
         if (error) throw error
       }
     }

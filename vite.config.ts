@@ -14,8 +14,8 @@ export default defineConfig({
         name: 'Lifegram — seu progresso, área por área',
         short_name: 'Lifegram',
         description: 'Treino, coragem e estatisticas de progresso em varias areas da vida',
-        theme_color: '#fbfaf6',
-        background_color: '#fbfaf6',
+        theme_color: '#0b0f17',
+        background_color: '#0b0f17',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
@@ -44,18 +44,6 @@ export default defineConfig({
         clientsClaim: true,
         // Toque na notificacao abre o app na tela certa (ex.: a agenda).
         importScripts: ['notification-click.js'],
-        // Fontes do Google guardadas no aparelho: a agenda abre igual offline.
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
       },
     }),
   ],

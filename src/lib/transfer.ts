@@ -28,7 +28,6 @@ import {
   type ID,
   type Routine,
   type RoutineExercise,
-  type RoutineGroup,
   type SyncTable,
   type Weekday,
 } from './types'
@@ -47,8 +46,8 @@ export const CATEGORIES: Category[] = [
   {
     id: 'plano',
     label: 'Plano de treino',
-    hint: 'Grupos, treinos da semana, exercícios e metas de séries',
-    tables: ['exercises', 'routine_groups', 'routines', 'routine_exercises'],
+    hint: 'Treinos da semana, exercícios e metas de séries',
+    tables: ['exercises', 'routines', 'routine_exercises'],
   },
   {
     id: 'historico',
@@ -72,9 +71,9 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: 'agenda',
-    label: 'Agenda e check-ins',
-    hint: 'Itens, o que foi feito e o fechamento de cada dia',
-    tables: ['activities', 'activity_logs', 'checkins'],
+    label: 'Agenda',
+    hint: 'Atividades e o que foi feito',
+    tables: ['activities', 'activity_logs'],
   },
   {
     id: 'financeiro',
@@ -98,9 +97,7 @@ export type TransferFile = Omit<Partial<Backup>, 'version'> & {
 
 const PLAN_README =
   'Plano de treino do app Lifegram. Para criar ou mudar o plano: edite "routines" ' +
-  '(treinos; scheduled_days usa 0=domingo ... 6=sábado; group_id liga o treino a um ' +
-  'grupo de "routine_groups", que tem name e scheduled_days próprios e reveza os ' +
-  'treinos dele), "routine_exercises" (cada ' +
+  '(treinos; scheduled_days usa 0=domingo ... 6=sábado), "routine_exercises" (cada ' +
   'exercício dentro de um treino: routine_id, exercise_id, position, target_sets, ' +
   'target_reps, target_weight em kg, rest_seconds ou null) e "exercises" (name, ' +
   `muscle_group entre ${MUSCLE_GROUPS.join(', ')}; measure "reps" ou "tempo"). ` +
@@ -139,7 +136,6 @@ export async function exportCategories(categories: CategoryId[]): Promise<Transf
     const routines = (out.routines ?? []).filter((r) => !r.archived)
     const live = new Set(routines.map((r) => r.id))
     out.routines = routines
-    out.routine_groups = (out.routine_groups ?? []).filter((g) => !g.archived)
     out.routine_exercises = (out.routine_exercises ?? []).filter((re) => live.has(re.routine_id))
     // Exercicios: os usados nos treinos ativos + os nao arquivados.
     const used = new Set(out.routine_exercises.map((re) => re.exercise_id))
@@ -182,7 +178,6 @@ export function preparePlan(
   stamp: string = nowISO(),
 ): {
   exercises: Exercise[]
-  routine_groups: RoutineGroup[]
   routines: Routine[]
   routine_exercises: RoutineExercise[]
   matchedByName: number
@@ -241,26 +236,6 @@ export function preparePlan(
     })
   }
 
-  const groupIds = new Map<ID, ID>()
-  const routine_groups: RoutineGroup[] = []
-  ;((file.routine_groups ?? []) as Array<Partial<RoutineGroup>>).forEach((raw, index) => {
-    const name = String(raw.name ?? '').trim()
-    if (!name) return
-    const id = fresh(raw.id)
-    groupIds.set(String(raw.id ?? name), id)
-    routine_groups.push({
-      id,
-      user_id: null,
-      name,
-      position: num(raw.position, index),
-      scheduled_days: (Array.isArray(raw.scheduled_days) ? raw.scheduled_days : []).filter(
-        (d): d is Weekday => Number.isInteger(d) && d >= 0 && d <= 6,
-      ),
-      archived: raw.archived === true,
-      updated_at: stamp,
-    })
-  })
-
   const routines: Routine[] = []
   ;((file.routines ?? []) as Array<Partial<Routine>>).forEach((raw, index) => {
     const name = String(raw.name ?? '').trim()
@@ -275,7 +250,6 @@ export function preparePlan(
       scheduled_days: (Array.isArray(raw.scheduled_days) ? raw.scheduled_days : []).filter(
         (d): d is Weekday => Number.isInteger(d) && d >= 0 && d <= 6,
       ),
-      group_id: raw.group_id ? (groupIds.get(String(raw.group_id)) ?? raw.group_id) : null,
       archived: raw.archived === true,
       updated_at: stamp,
     })
@@ -303,7 +277,7 @@ export function preparePlan(
       updated_at: stamp,
     })
   }
-  return { exercises, routine_groups, routines, routine_exercises, matchedByName }
+  return { exercises, routines, routine_exercises, matchedByName }
 }
 
 /** Importa so as categorias escolhidas. */
@@ -347,7 +321,6 @@ export async function importCategories(
     }
     for (const [table, rows] of [
       ['exercises', plan.exercises],
-      ['routine_groups', plan.routine_groups],
       ['routines', plan.routines],
       ['routine_exercises', plan.routine_exercises],
     ] as const) {

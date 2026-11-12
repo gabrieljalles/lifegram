@@ -4,10 +4,9 @@ import { addDays, format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { QuestRow } from '../../components/agenda-ui'
 import { Button, Card, EmptyState, Header, Section } from '../../components/ui'
-import { agendaOf, dayKey, describeWhen, streakOf } from '../../lib/activities'
+import { agendaOf, dayKey, describeWhen, streakOf, xpOf } from '../../lib/activities'
 import { useNow } from '../../lib/useNow'
-import { toggleItem } from '../../lib/activityActions'
-import { isTask } from '../../lib/tasks'
+import { toggleActivity } from '../../lib/activityActions'
 import {
   cachedGcalEvents,
   connectGcal,
@@ -61,19 +60,17 @@ export default function Agenda() {
     [live, activityLogs, now],
   )
 
-  const tasks = live
-    .filter((a) => isTask(a) && !a.completed_at)
-    .sort((a, b) => (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999'))
-  const recurring = live.filter((a) => a.kind === 'recorrente' && !isTask(a))
+  const recurring = live.filter((a) => a.kind === 'recorrente')
   const sporadic = live
-    .filter((a) => a.kind === 'esporadica' && !isTask(a) && (a.date ?? '') >= todayKey)
+    .filter((a) => a.kind === 'esporadica' && (a.date ?? '') >= todayKey)
     .sort((a, b) => `${a.date}${a.time ?? ''}`.localeCompare(`${b.date}${b.time ?? ''}`))
 
   const doneCount = agenda.filter((o) => o.done).length
+  const xpDay = agenda.reduce((sum, o) => sum + (o.done ? xpOf(o, streaks.get(o.activity.id) ?? 0) : 0), 0)
   const canCheck = selected <= todayKey
 
   const toggle = async (activity: Activity) => {
-    const done = await toggleItem(activity, selected)
+    const done = await toggleActivity(activity.id, selected)
     if (done) vibrate(40)
     await reload()
   }
@@ -85,7 +82,7 @@ export default function Agenda() {
         <EmptyState
           icon="🗓️"
           title="Nenhuma atividade ainda"
-          description="Crie hábitos que se repetem (ler uma página, seg a sex às 7h) ou compromissos de um dia só."
+          description="Crie hábitos que se repetem (ler uma página, seg a sex às 7h) ou compromissos de um dia só. Cada um vira uma missão com XP."
           action={<Button onClick={() => navigate('/agenda/nova')}>+ Nova atividade</Button>}
         />
         <GoogleCard activities={activities} onChange={reload} onSynced={loadGoogle} />
@@ -148,35 +145,34 @@ export default function Agenda() {
         <div className="mb-2 flex items-baseline justify-between">
           <h2 className="text-sm font-black uppercase tracking-widest text-ink-300">
             {selected === todayKey
-              ? 'Hoje'
+              ? 'Missões de hoje'
               : format(parseISO(selected), "EEEE, d 'de' MMM", { locale: ptBR })}
           </h2>
           <span className="tnum text-xs font-bold text-ink-400">
             {doneCount}/{agenda.length}
+            {xpDay > 0 && <span className="ml-2 text-pr-400">+{xpDay} XP</span>}
           </span>
         </div>
         {agenda.length > 0 && (
           <div
             className="mb-3 h-2.5 overflow-hidden rounded-full bg-ink-950/70 ring-1 ring-ink-700"
             role="progressbar"
-            aria-label="Itens feitos no dia"
+            aria-label="Missões feitas no dia"
             aria-valuemin={0}
             aria-valuemax={agenda.length}
             aria-valuenow={doneCount}
           >
             <div
-              className="h-full rounded-full bg-brand-500 transition-[width] duration-500"
+              className="xp-fill h-full rounded-full transition-[width] duration-500"
               style={{ width: `${(doneCount / agenda.length) * 100}%` }}
             />
           </div>
         )}
 
         {agenda.length === 0 ? (
-          googleDay.length === 0 && (
-            <p className="rounded-2xl border border-dashed border-ink-700 p-4 text-center text-sm text-ink-400">
-              Dia livre. Nada marcado.
-            </p>
-          )
+          googleDay.length === 0 && <p className="rounded-2xl border border-dashed border-ink-700 p-4 text-center text-sm text-ink-400">
+            Dia livre. Nada marcado.
+          </p>
         ) : (
           <div className="flex flex-col gap-2">
             {agenda.map((occ) => (
@@ -199,15 +195,6 @@ export default function Agenda() {
 
         {googleDay.length > 0 && <GoogleDay events={googleDay} />}
       </section>
-
-      <Section title={`Tarefas · ${tasks.length}`}>
-        <CatalogList
-          items={tasks}
-          streaks={streaks}
-          empty="Nenhuma tarefa aberta."
-          onOpen={(a) => navigate(`/agenda/${a.id}`)}
-        />
-      </Section>
 
       <Section title={`Recorrentes · ${recurring.length}`}>
         <CatalogList
@@ -232,7 +219,7 @@ export default function Agenda() {
   )
 }
 
-/** Compromissos do Google no dia: so para ver, so para ver. */
+/** Compromissos do Google no dia: so para ver, nao valem XP. */
 function GoogleDay({ events }: { events: GcalEvent[] }) {
   return (
     <div className="mt-4">
@@ -296,9 +283,7 @@ function CatalogList({
               <span className="block truncate text-sm font-semibold">{activity.title}</span>
               <span className="tnum block text-xs text-ink-400">{describeWhen(activity)}</span>
             </span>
-            {streak > 0 && (
-              <span className="tnum text-xs font-black text-fire-400">🔥{streak}</span>
-            )}
+            {streak > 0 && <span className="tnum text-xs font-black text-fire-400">🔥{streak}</span>}
             {activity.gcal_event_id && (
               <span className="text-xs" title="No Google Agenda" aria-label="No Google Agenda">
                 📅
@@ -353,9 +338,7 @@ function GoogleCard({
       else if (result.error) setMessage(`Falhou: ${result.error}`)
       else {
         const total = result.created + result.updated + result.removed
-        setMessage(
-          total === 0 ? 'Tudo já estava na agenda.' : `${total} evento(s) atualizados no Google.`,
-        )
+        setMessage(total === 0 ? 'Tudo já estava na agenda.' : `${total} evento(s) atualizados no Google.`)
       }
       await onChange()
       await onSynced()
@@ -389,8 +372,8 @@ function GoogleCard({
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold">{linked ? 'Conectado' : 'Não conectado'}</p>
             <p className="text-xs text-ink-400">
-              Cada atividade vira um evento na sua agenda principal, com repetição e aviso do
-              Google. Seus outros compromissos aparecem aqui na Agenda.
+              Cada atividade vira um evento na sua agenda principal, com repetição e aviso do Google.
+              Seus outros compromissos aparecem aqui na Agenda.
             </p>
           </div>
         </div>

@@ -11,6 +11,8 @@ import {
   totalVolume,
 } from '../lib/stats'
 import { useApp } from '../lib/store'
+import { useGame } from '../lib/useGame'
+import { LevelCard } from '../components/game'
 import { overallStats } from '../lib/courage'
 import { ACCENT_TEXT, SKILL_AREAS, type SkillSnapshot } from '../lib/skills'
 
@@ -21,12 +23,12 @@ import { ACCENT_TEXT, SKILL_AREAS, type SkillSnapshot } from '../lib/skills'
  */
 export default function Performance() {
   const navigate = useNavigate()
-  const { sessions, setLogs, routines, routineGroups, settings, courageGoals, courageAttempts } =
-    useApp()
+  const { sessions, setLogs, routines, settings, courageGoals, courageAttempts } = useApp()
+  const { xp } = useGame()
 
   const streak = useMemo(
-    () => computeScheduleStreak(sessions, scheduleOf(routines, settings, routineGroups)),
-    [sessions, routines, settings, routineGroups],
+    () => computeScheduleStreak(sessions, scheduleOf(routines, settings)),
+    [sessions, routines, settings],
   )
 
   const weeks = useMemo(() => bucketize(sessions, setLogs, 'week', 12), [sessions, setLogs])
@@ -142,6 +144,25 @@ export default function Performance() {
           snapshots.length === 1 ? 'área medida' : 'áreas com dados'
         }`}
       />
+
+      <div className="px-4 pt-3">
+        <LevelCard xp={xp}>
+          <div className="mt-3 grid grid-cols-3 gap-2 border-t border-ink-700/60 pt-3 text-center">
+            <div>
+              <p className="tnum text-lg font-black text-brand-400">{xp.breakdown.treino}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">XP de treino</p>
+            </div>
+            <div>
+              <p className="tnum text-lg font-black text-fire-400">{xp.breakdown.coragem}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">XP de coragem</p>
+            </div>
+            <div>
+              <p className="tnum text-lg font-black text-go-400">{xp.breakdown.agenda}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">XP da agenda</p>
+            </div>
+          </div>
+        </LevelCard>
+      </div>
 
       {snapshots.map((snapshot) => (
         <Section key={snapshot.area.id} title={snapshot.area.name}>

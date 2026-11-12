@@ -1,11 +1,5 @@
 import type { ReactNode } from 'react'
-import { FUNNEL_CONTEXTS } from '../lib/rejections'
-import {
-  COURAGE_MAX_SCORE,
-  COURAGE_STATUS_LABEL,
-  type CourageStatus,
-  type FunnelContext,
-} from '../lib/types'
+import { COURAGE_MAX_SCORE, COURAGE_STATUS_LABEL, type CourageStatus } from '../lib/types'
 
 /**
  * Pecas visuais da escada do medo.
@@ -207,35 +201,3 @@ export function Field({
 
 export const inputClass =
   'w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-3 text-sm outline-none focus:border-brand-500'
-
-/** Onde aconteceu o nao/sim: um toque, logo depois de registrar. */
-export function ContextPicker({
-  value,
-  onPick,
-}: {
-  value: FunnelContext | null | undefined
-  onPick: (context: FunnelContext) => void
-}) {
-  return (
-    <div className="animate-rise">
-      <p className="mb-1.5 text-center text-[11px] font-semibold text-ink-300">Onde foi?</p>
-      <div className="flex flex-wrap justify-center gap-1.5">
-        {FUNNEL_CONTEXTS.map((ctx) => (
-          <button
-            key={ctx.id}
-            type="button"
-            onClick={() => onPick(ctx.id)}
-            aria-pressed={value === ctx.id}
-            className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${
-              value === ctx.id
-                ? 'border-brand-400 bg-brand-500/25 text-ink-50'
-                : 'border-ink-600 bg-ink-850 text-ink-300 active:bg-ink-800'
-            }`}
-          >
-            <span aria-hidden="true">{ctx.icon}</span> {ctx.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}

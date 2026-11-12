@@ -10,9 +10,9 @@ import {
   formatVolume,
   heatmapDays,
   periodDelta,
+  routinesForDay,
   scheduleOf,
 } from '../lib/stats'
-import { groupOf, lastDoneByRoutine as lastDoneOf, planForDay } from '../lib/plan'
 import { useApp } from '../lib/store'
 import { seedStarterData, startWorkout } from '../lib/workout'
 import { WEEKDAYS, type Routine, type Weekday } from '../lib/types'
@@ -22,7 +22,6 @@ export default function Home() {
   const navigate = useNavigate()
   const {
     routines,
-    routineGroups,
     routineExercises,
     sessions,
     setLogs,
@@ -34,22 +33,12 @@ export default function Home() {
   } = useApp()
   const [busy, setBusy] = useState(false)
 
-  const schedule = useMemo(
-    () => scheduleOf(routines, settings, routineGroups),
-    [routines, settings, routineGroups],
-  )
+  const schedule = useMemo(() => scheduleOf(routines, settings), [routines, settings])
   const streak = useMemo(() => computeScheduleStreak(sessions, schedule), [sessions, schedule])
 
   const weekday = new Date().getDay() as Weekday
-  /** Treinos de hoje ainda abertos: um por grupo, mais os avulsos do dia. */
-  const todayPlan = useMemo(
-    () =>
-      planForDay(routines, routineGroups, sessions, new Date()).filter(
-        (item) => !item.session && item.routine,
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [routines, routineGroups, sessions, weekday],
-  )
+  /** Treinos marcados para hoje — a agenda manda na sugestao. */
+  const todayRoutines = useMemo(() => routinesForDay(routines, weekday), [routines, weekday])
   const restToday = settings.rest_days.includes(weekday)
   const heat = useMemo(() => heatmapDays(sessions, setLogs), [sessions, setLogs])
   const weeks = useMemo(() => bucketize(sessions, setLogs, 'week', 2), [sessions, setLogs])
@@ -61,7 +50,15 @@ export default function Home() {
   const volumeDelta = periodDelta(weeks, 'volume')
 
   /** Ultima vez que cada treino foi feito — base para sugerir o proximo. */
-  const lastDoneByRoutine = useMemo(() => lastDoneOf(sessions), [sessions])
+  const lastDoneByRoutine = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const session of sessions) {
+      if (!session.finished_at || !session.routine_id) continue
+      const current = map.get(session.routine_id)
+      if (!current || current < session.started_at) map.set(session.routine_id, session.started_at)
+    }
+    return map
+  }, [sessions])
 
   /** Sugere o treino parado ha mais tempo — evita repetir sempre o mesmo. */
   const suggested = useMemo(() => {
@@ -194,7 +191,7 @@ export default function Home() {
         <>
           {!active && (
             <Section title={restToday ? 'Hoje é descanso' : 'Hoje'}>
-              {todayPlan.length === 0 && trainedToday ? (
+              {trainedToday ? (
                 <Card className="border-go-500/40 bg-go-600/10 p-4">
                   <p className="font-semibold text-go-400">Treino de hoje feito ✓</p>
                   <p className="mt-0.5 text-xs text-ink-400">
@@ -218,40 +215,35 @@ export default function Home() {
                     Treinar mesmo assim
                   </Button>
                 </Card>
-              ) : todayPlan.length > 0 ? (
+              ) : todayRoutines.length > 0 ? (
                 <div className="flex flex-col gap-2">
-                  {todayPlan.map(({ key, group, routine: planned }) => {
-                    const routine = planned as Routine
-                    return (
-                      <Card key={key} className="overflow-hidden p-4">
-                        <p className="text-xs font-medium text-brand-400">
-                          {group
-                            ? `${group.name} · próximo do rodízio`
-                            : `Marcado para ${WEEKDAYS[weekday].label}`}
-                        </p>
-                        <p className="mt-0.5 text-lg font-bold">{routine.name}</p>
-                        <p className="mt-0.5 text-xs text-ink-400">
-                          {countOf(routine)} {countOf(routine) === 1 ? 'exercício' : 'exercícios'} ·{' '}
-                          {lastDoneByRoutine.has(routine.id)
-                            ? `última vez em ${format(
-                                parseISO(lastDoneByRoutine.get(routine.id) as string),
-                                "d 'de' MMM",
-                                { locale: ptBR },
-                              )}`
-                            : 'você ainda não fez este'}
-                        </p>
-                        <Button
-                          className="mt-3 w-full"
-                          size="lg"
-                          variant="go"
-                          disabled={busy || countOf(routine) === 0}
-                          onClick={() => void begin(routine)}
-                        >
-                          Iniciar treino
-                        </Button>
-                      </Card>
-                    )
-                  })}
+                  {todayRoutines.map((routine) => (
+                    <Card key={routine.id} className="overflow-hidden p-4">
+                      <p className="text-xs font-medium text-brand-400">
+                        Marcado para {WEEKDAYS[weekday].label}
+                      </p>
+                      <p className="mt-0.5 text-lg font-bold">{routine.name}</p>
+                      <p className="mt-0.5 text-xs text-ink-400">
+                        {countOf(routine)} exercícios ·{' '}
+                        {lastDoneByRoutine.has(routine.id)
+                          ? `última vez em ${format(
+                              parseISO(lastDoneByRoutine.get(routine.id) as string),
+                              "d 'de' MMM",
+                              { locale: ptBR },
+                            )}`
+                          : 'você ainda não fez este'}
+                      </p>
+                      <Button
+                        className="mt-3 w-full"
+                        size="lg"
+                        variant="go"
+                        disabled={busy || countOf(routine) === 0}
+                        onClick={() => void begin(routine)}
+                      >
+                        Iniciar treino
+                      </Button>
+                    </Card>
+                  ))}
                 </div>
               ) : (
                 suggested && (
@@ -297,8 +289,6 @@ export default function Home() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold">{routine.name}</p>
                       <p className="text-xs text-ink-400">
-                        {groupOf(routine, routineGroups) &&
-                          `${groupOf(routine, routineGroups)!.name} · `}
                         {count} {count === 1 ? 'exercício' : 'exercícios'}
                         {last && ` · ${format(parseISO(last), 'd/MM', { locale: ptBR })}`}
                       </p>

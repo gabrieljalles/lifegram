@@ -1,24 +1,15 @@
 import { useState } from 'react'
-import { addDays, format } from 'date-fns'
+import { format } from 'date-fns'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, EmptyState, Header, Section, WeekdayPicker } from '../../components/ui'
-import { ACTIVITY_ICONS, dayKey, describeDays } from '../../lib/activities'
-import { archiveActivity, saveActivity, setTaskCompleted } from '../../lib/activityActions'
-import { canComplete, deadlineLabel, daysToDeadline } from '../../lib/tasks'
+import { ACTIVITY_ICONS, ACTIVITY_XP, COMBO_AT, dayKey, describeDays } from '../../lib/activities'
+import { archiveActivity, saveActivity } from '../../lib/activityActions'
 import { templateUrl } from '../../lib/gcal'
 import { TRAVEL_OPTIONS, formatTravel, reminderPlan } from '../../lib/reminders'
 import { requestNotificationPermission } from '../../lib/timer'
 import { reminderChannel, type ReminderChannel } from '../../lib/useActivityReminders'
 import { useApp } from '../../lib/store'
-import { ITEM_TYPES, itemTypeOf } from '../../lib/items'
-import {
-  newId,
-  type Activity,
-  type ActivityKind,
-  type ItemType,
-  type Subtask,
-  type Weekday,
-} from '../../lib/types'
+import type { Activity, ActivityKind, Weekday } from '../../lib/types'
 import { confirmDialog } from '../../lib/dialog'
 
 const PRESETS: Array<{ label: string; days: Weekday[] }> = [
@@ -39,14 +30,10 @@ export default function ActivityForm() {
   const { activities, reload } = useApp()
   const existing = activityId ? activities.find((a) => a.id === activityId) : undefined
 
-  const [itemType, setItemType] = useState<ItemType>(existing ? itemTypeOf(existing) : 'habito')
-  const [dose, setDose] = useState(existing?.dose ?? '')
   const [kind, setKind] = useState<ActivityKind>(existing?.kind ?? 'recorrente')
   const [title, setTitle] = useState(existing?.title ?? '')
   const [icon, setIcon] = useState(existing?.icon ?? ACTIVITY_ICONS[0])
-  const [days, setDays] = useState<Weekday[]>(
-    existing?.days.length ? existing.days : [1, 2, 3, 4, 5],
-  )
+  const [days, setDays] = useState<Weekday[]>(existing?.days.length ? existing.days : [1, 2, 3, 4, 5])
   const [date, setDate] = useState(existing?.date ?? dayKey(new Date()))
   const [timed, setTimed] = useState(Boolean(existing?.time))
   const [time, setTime] = useState(existing?.time ?? '07:00')
@@ -54,21 +41,6 @@ export default function ActivityForm() {
   const [travel, setTravel] = useState(existing?.travel_minutes ?? 0)
   const [channel, setChannel] = useState<ReminderChannel>(reminderChannel)
   const [saving, setSaving] = useState(false)
-  const [startsOn, setStartsOn] = useState(existing?.starts_on ?? dayKey(new Date()))
-  const [hasDeadline, setHasDeadline] = useState(Boolean(existing?.deadline))
-  const [deadline, setDeadline] = useState(
-    () => existing?.deadline ?? dayKey(addDays(new Date(), 7)),
-  )
-  const [steps, setSteps] = useState<Subtask[]>(existing?.subtasks ?? [])
-  const [newStep, setNewStep] = useState('')
-  const isTarefa = itemType === 'tarefa'
-
-  const addStep = () => {
-    const text = newStep.trim()
-    if (!text) return
-    setSteps((list) => [...list, { id: newId(), title: text, done: false }])
-    setNewStep('')
-  }
 
   if (activityId && !existing) {
     return (
@@ -79,10 +51,7 @@ export default function ActivityForm() {
     )
   }
 
-  const valid =
-    title.trim().length > 0 &&
-    (kind === 'esporadica' ? isTarefa || Boolean(date) : days.length > 0) &&
-    (!isTarefa || !hasDeadline || deadline >= startsOn)
+  const valid = title.trim().length > 0 && (kind === 'esporadica' ? Boolean(date) : days.length > 0)
 
   const save = async () => {
     if (!valid || saving) return
@@ -92,22 +61,9 @@ export default function ActivityForm() {
         {
           title: title.trim(),
           icon,
-          item_type: itemType,
-          dose: itemType === 'remedio' && dose.trim() ? dose.trim() : null,
           kind,
           days: kind === 'recorrente' ? days : [],
-          date: kind === 'esporadica' && !isTarefa ? date : null,
-          ...(isTarefa
-            ? {
-                starts_on: startsOn,
-                deadline: hasDeadline ? deadline : null,
-                subtasks: steps,
-                // Subtarefa nova numa tarefa fechada reabre a tarefa.
-                ...(existing?.completed_at && !canComplete({ subtasks: steps })
-                  ? { completed_at: null }
-                  : {}),
-              }
-            : {}),
+          date: kind === 'esporadica' ? date : null,
           time: timed ? time : null,
           duration_minutes: duration,
           travel_minutes: timed ? travel : 0,
@@ -125,7 +81,7 @@ export default function ActivityForm() {
     if (
       !(await confirmDialog({
         title: `Remover "${activity.title}"?`,
-        message: 'O histórico do que você já fez continua guardado.',
+        message: 'O XP que você já ganhou com ela continua.',
         confirmLabel: 'Remover',
         danger: true,
       }))
@@ -137,11 +93,12 @@ export default function ActivityForm() {
   }
 
   const gcalLink = existing ? templateUrl(existing) : null
+  const xp = ACTIVITY_XP[kind]
 
   return (
     <div>
       <Header
-        title={existing ? 'Editar item' : 'Novo item'}
+        title={existing ? 'Editar atividade' : 'Nova atividade'}
         back="/agenda"
         action={
           <Button size="sm" onClick={() => void save()} disabled={!valid || saving}>
@@ -150,51 +107,13 @@ export default function ActivityForm() {
         }
       />
 
-      <Section title="O que é">
-        <div className="flex flex-wrap gap-1.5">
-          {ITEM_TYPES.filter((t) => t.id !== 'treino').map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              aria-pressed={itemType === t.id}
-              onClick={() => {
-                setItemType(t.id)
-                // Icone ainda no padrao acompanha o tipo; escolhido a mao fica.
-                if (
-                  !existing &&
-                  (icon === ACTIVITY_ICONS[0] || ITEM_TYPES.some((x) => x.icon === icon))
-                ) {
-                  setIcon(t.icon)
-                }
-                if (t.id === 'compromisso') setKind('esporadica')
-              }}
-              className={`min-h-[44px] rounded-full border-[1.5px] px-3.5 text-sm font-medium ${
-                itemType === t.id ? 'border-brand-400 bg-brand-400 text-ink-900' : 'border-ink-700'
-              }`}
-            >
-              {t.icon} {t.label}
-            </button>
-          ))}
-        </div>
-        {itemType === 'remedio' && (
-          <input
-            value={dose}
-            onChange={(event) => setDose(event.target.value)}
-            placeholder="Dose: 2.000 UI, 5 g, 1 comprimido"
-            className={`${input} mt-2.5`}
-          />
-        )}
-      </Section>
-
-      <Section title="Repete?">
+      <Section title="Tipo">
         <div className="grid grid-cols-2 gap-2">
           {(
             [
               { id: 'recorrente', icon: '🔁', label: 'Recorrente', hint: 'Repete na semana' },
-              isTarefa
-                ? { id: 'esporadica', icon: '🎯', label: 'Uma vez', hint: 'Aparece até concluir' }
-                : { id: 'esporadica', icon: '📌', label: 'Esporádica', hint: 'Um dia só' },
-            ] as Array<{ id: ActivityKind; icon: string; label: string; hint: string }>
+              { id: 'esporadica', icon: '📌', label: 'Esporádica', hint: 'Um dia só' },
+            ] as const
           ).map((option) => (
             <button
               key={option.id}
@@ -202,9 +121,7 @@ export default function ActivityForm() {
               onClick={() => setKind(option.id)}
               aria-pressed={kind === option.id}
               className={`rounded-2xl border-2 p-3 text-left transition-colors ${
-                kind === option.id
-                  ? 'border-brand-400 bg-brand-600/20'
-                  : 'border-ink-700 bg-ink-850'
+                kind === option.id ? 'border-brand-400 bg-brand-600/20' : 'border-ink-700 bg-ink-850'
               }`}
             >
               <span className="text-2xl" aria-hidden="true">
@@ -221,13 +138,7 @@ export default function ActivityForm() {
         <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder={
-            isTarefa
-              ? 'Lançar o portfólio'
-              : kind === 'recorrente'
-                ? 'Ler uma página do livro'
-                : 'Dentista'
-          }
+          placeholder={kind === 'recorrente' ? 'Ler uma página do livro' : 'Dentista'}
           className={input}
           autoFocus={!existing}
         />
@@ -270,7 +181,7 @@ export default function ActivityForm() {
             </p>
           </Card>
         </Section>
-      ) : isTarefa ? null : (
+      ) : (
         <Section title="Data">
           <input
             type="date"
@@ -279,127 +190,6 @@ export default function ActivityForm() {
             className={`${input} [color-scheme:dark]`}
           />
         </Section>
-      )}
-
-      {isTarefa && (
-        <>
-          <Section title="Subtarefas">
-            <Card className="divide-y divide-ink-700">
-              {steps.map((s, index) => (
-                <div key={s.id} className="flex min-h-[48px] items-center gap-2 px-3">
-                  <button
-                    type="button"
-                    aria-pressed={s.done}
-                    aria-label={s.done ? `Desmarcar ${s.title}` : `Marcar ${s.title}`}
-                    onClick={() =>
-                      setSteps((list) =>
-                        list.map((x) => (x.id === s.id ? { ...x, done: !x.done } : x)),
-                      )
-                    }
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded border-[1.5px] text-xs font-bold ${
-                      s.done
-                        ? 'border-brand-400 bg-brand-400 text-ink-900'
-                        : 'border-ink-400 text-transparent'
-                    }`}
-                  >
-                    ✓
-                  </button>
-                  <input
-                    value={s.title}
-                    onChange={(e) =>
-                      setSteps((list) =>
-                        list.map((x) => (x.id === s.id ? { ...x, title: e.target.value } : x)),
-                      )
-                    }
-                    aria-label={`Subtarefa ${index + 1}`}
-                    className={`min-w-0 flex-1 bg-transparent py-2 text-sm outline-none ${
-                      s.done ? 'text-ink-400 line-through' : ''
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setSteps((list) => list.filter((x) => x.id !== s.id))}
-                    aria-label={`Tirar ${s.title}`}
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-ink-400 active:bg-ink-800"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              <form
-                className="flex items-center gap-2 px-3 py-2"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  addStep()
-                }}
-              >
-                <input
-                  value={newStep}
-                  onChange={(e) => setNewStep(e.target.value)}
-                  placeholder={steps.length ? 'Próximo passo' : 'Primeiro passo'}
-                  className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-ink-400"
-                />
-                <button
-                  type="submit"
-                  disabled={!newStep.trim()}
-                  className="min-h-[36px] rounded-full bg-brand-600 px-3 text-xs font-bold text-white disabled:opacity-40"
-                >
-                  Adicionar
-                </button>
-              </form>
-            </Card>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-ink-400">
-              A tarefa só se conclui quando todas as subtarefas estiverem feitas. No Hoje elas ficam
-              recolhidas embaixo do título.
-            </p>
-          </Section>
-
-          <Section title="Datas">
-            <Card className="p-4">
-              <label className="flex items-center justify-between gap-3 text-sm font-semibold">
-                Começa em
-                <input
-                  type="date"
-                  value={startsOn}
-                  onChange={(e) => e.target.value && setStartsOn(e.target.value)}
-                  className="tnum rounded-lg border border-ink-700 bg-ink-850 px-2 py-1.5 text-sm"
-                />
-              </label>
-              <label className="mt-3 flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold">Prazo</span>
-                <input
-                  type="checkbox"
-                  checked={hasDeadline}
-                  onChange={(e) => setHasDeadline(e.target.checked)}
-                  className="h-5 w-5 accent-brand-500"
-                />
-              </label>
-              {hasDeadline && (
-                <input
-                  type="date"
-                  value={deadline}
-                  min={startsOn}
-                  onChange={(e) => e.target.value && setDeadline(e.target.value)}
-                  aria-label="Data do prazo"
-                  className={`${input} tnum mt-2`}
-                />
-              )}
-              <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
-                {!hasDeadline
-                  ? kind === 'esporadica'
-                    ? 'Sem prazo: aparece todo dia no Hoje até você concluir.'
-                    : 'Sem prazo: aparece nos dias marcados até você concluir.'
-                  : deadline < startsOn
-                    ? 'O prazo precisa ser depois do começo.'
-                    : `${
-                        kind === 'esporadica'
-                          ? 'Aparece todo dia até concluir'
-                          : 'Aparece nos dias marcados até o prazo'
-                      }. Passou do prazo sem concluir, aparece todo dia cobrando. Hoje: ${deadlineLabel(daysToDeadline({ deadline }, new Date()))}.`}
-              </p>
-            </Card>
-          </Section>
-        </>
       )}
 
       <Section title="Horário">
@@ -436,9 +226,7 @@ export default function ActivityForm() {
               </select>
             </div>
           ) : (
-            <p className="mt-1.5 text-[11px] text-ink-400">
-              Sem hora: vale a qualquer momento do dia.
-            </p>
+            <p className="mt-1.5 text-[11px] text-ink-400">Sem hora: vale a qualquer momento do dia.</p>
           )}
         </Card>
       </Section>
@@ -476,9 +264,26 @@ export default function ActivityForm() {
         </Section>
       )}
 
+      <Section title="Recompensa">
+        <Card className="flex items-center gap-3 p-4">
+          <span className="text-2xl" aria-hidden="true">
+            💰
+          </span>
+          <p className="text-sm text-ink-300">
+            <b className="text-pr-400">+{xp} XP</b> cada vez que cumprir.
+            {kind === 'recorrente' && (
+              <>
+                {' '}
+                Com <b className="text-fire-400">🔥 {COMBO_AT} seguidas</b> vira combo e o XP dobra.
+              </>
+            )}
+          </p>
+        </Card>
+      </Section>
+
       <div className="flex flex-col gap-2 px-4 pb-6 pt-2">
         <Button size="lg" onClick={() => void save()} disabled={!valid || saving}>
-          {existing ? 'Salvar mudanças' : isTarefa ? 'Criar tarefa' : 'Criar item'}
+          {existing ? 'Salvar mudanças' : 'Criar missão'}
         </Button>
         {gcalLink && (
           <a
@@ -489,23 +294,6 @@ export default function ActivityForm() {
           >
             📅 Adicionar ao Google Agenda
           </a>
-        )}
-        {existing && isTarefa && existing.kind === 'recorrente' && (
-          <Button
-            variant="outline"
-            disabled={!existing.completed_at && !canComplete({ subtasks: steps })}
-            onClick={async () => {
-              await setTaskCompleted(existing, !existing.completed_at)
-              await reload()
-              navigate('/agenda')
-            }}
-          >
-            {existing.completed_at
-              ? 'Reabrir tarefa'
-              : canComplete({ subtasks: steps })
-                ? 'Concluir tarefa'
-                : 'Conclua as subtarefas para fechar'}
-          </Button>
         )}
         {existing && (
           <Button variant="danger" onClick={() => void archive(existing)}>
@@ -542,10 +330,7 @@ function ReminderTimeline({ time, travel }: { time: string; travel: number }) {
       {steps.map((step, index) => (
         <li key={step.label} className="relative flex flex-1 flex-col items-center text-center">
           {index > 0 && (
-            <span
-              className="absolute right-1/2 top-4 h-0.5 w-full -translate-y-1/2 bg-ink-700"
-              aria-hidden="true"
-            />
+            <span className="absolute right-1/2 top-4 h-0.5 w-full -translate-y-1/2 bg-ink-700" aria-hidden="true" />
           )}
           <span className="relative flex h-8 w-8 items-center justify-center rounded-full border border-ink-600 bg-ink-850 text-base">
             {step.icon}
@@ -576,11 +361,7 @@ function ReminderDelivery({ channel, onAsk }: { channel: ReminderChannel; onAsk:
   return (
     <p
       className={`mt-4 text-[11px] leading-relaxed ${
-        channel === 'google'
-          ? 'text-go-400'
-          : channel === 'blocked'
-            ? 'text-fire-400'
-            : 'text-ink-400'
+        channel === 'google' ? 'text-go-400' : channel === 'blocked' ? 'text-fire-400' : 'text-ink-400'
       }`}
     >
       {text}

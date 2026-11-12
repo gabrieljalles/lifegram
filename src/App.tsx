@@ -8,21 +8,15 @@ import ActiveWorkout from './screens/ActiveWorkout'
 import WorkoutSummary from './screens/WorkoutSummary'
 import RoutineList from './screens/editor/RoutineList'
 import RoutineEditor from './screens/editor/RoutineEditor'
-import RoutineGroupEditor from './screens/editor/RoutineGroupEditor'
 import ExerciseList from './screens/editor/ExerciseList'
 import ExerciseEditor from './screens/editor/ExerciseEditor'
 import Settings from './screens/Settings'
-import Checkin from './screens/Checkin'
-import { useNow } from './lib/useNow'
-import { useTheme } from './lib/useTheme'
 import DialogHost from './components/DialogHost'
 
 // Os graficos pesam mais que o resto do app somado: so carregam quando
 // o usuario abre o progresso, nunca durante o treino.
 const Stats = lazy(() => import('./screens/Stats'))
 const Performance = lazy(() => import('./screens/Performance'))
-const Patterns = lazy(() => import('./screens/Patterns'))
-const Life = lazy(() => import('./screens/Life'))
 const CourageHome = lazy(() => import('./screens/courage/CourageHome'))
 const CourageGoalDetail = lazy(() => import('./screens/courage/CourageGoalDetail'))
 const CourageGoalForm = lazy(() => import('./screens/courage/CourageGoalForm'))
@@ -43,7 +37,7 @@ const Taxes = lazy(() => import('./screens/finance/Taxes'))
 const TaxSettings = lazy(() => import('./screens/finance/TaxSettings'))
 
 /** A tela de treino e imersiva: sem barra de navegacao competindo com o foco. */
-const IMMERSIVE = ['/treino', '/resumo', '/coragem/mapa', '/checkin']
+const IMMERSIVE = ['/treino', '/resumo', '/coragem/mapa']
 
 interface NavItem {
   to: string
@@ -61,8 +55,14 @@ const NAV: NavItem[] = [
   {
     to: '/',
     label: 'Hoje',
-    icon: 'M4 5h16v15H4zM8 3v4M16 3v4M8 12h8M8 16h5',
+    icon: 'M12 2l2.4 6.9H22l-6 4.6 2.3 7.1L12 16.2l-6.3 4.4L8 13.5 2 8.9h7.6z',
     match: (p) => p === '/',
+  },
+  {
+    to: '/academia',
+    label: 'Treino',
+    icon: 'M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10',
+    match: (p) => ['/academia', '/treinos', '/exercicio'].some((x) => p.startsWith(x)),
   },
   {
     to: '/agenda',
@@ -77,19 +77,16 @@ const NAV: NavItem[] = [
     match: (p) => p.startsWith('/coragem') && !p.startsWith('/coragem/painel'),
   },
   {
-    to: '/padroes',
-    label: 'Padrões',
-    icon: 'M4 19V9M10 19V5M16 19v-7M22 19H2',
-    match: (p) => ['/padroes', '/desempenho', '/stats', '/coragem/painel'].some((x) => p.startsWith(x)),
+    to: '/financeiro',
+    label: 'Financeiro',
+    icon: 'M3 7h18v13H3zM3 7l2-4h14l2 4M16 13.5h2',
+    match: (p) => p.startsWith('/financeiro'),
   },
   {
-    to: '/vida',
-    label: 'Vida',
-    icon: 'M4 6h16M4 12h16M4 18h16',
-    match: (p) =>
-      ['/vida', '/academia', '/treinos', '/exercicio', '/financeiro', '/config'].some((x) =>
-        p.startsWith(x),
-      ),
+    to: '/desempenho',
+    label: 'Progresso',
+    icon: 'M4 19V9M10 19V5M16 19v-7M22 19H2',
+    match: (p) => ['/desempenho', '/stats', '/coragem/painel'].some((x) => p.startsWith(x)),
   },
 ]
 
@@ -98,7 +95,7 @@ function BottomNav() {
   if (IMMERSIVE.some((prefix) => pathname.startsWith(prefix))) return null
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-ink-100 bg-ink-900 safe-b">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-700 bg-ink-950/95 backdrop-blur safe-b">
       <div className="mx-auto flex max-w-lg">
         {NAV.map((item) => {
           const on = item.match(pathname)
@@ -107,15 +104,22 @@ function BottomNav() {
               key={item.to}
               to={item.to}
               aria-current={on ? 'page' : undefined}
-              className={`flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 text-[11px] ${
-                on ? 'font-bold text-brand-400' : 'font-medium text-ink-400'
+              className={`relative flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-bold transition-colors ${
+                on ? 'text-brand-400' : 'text-ink-400'
               }`}
             >
+              {on && (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-0 h-0.5 w-8 rounded-full bg-brand-400 shadow-[0_0_10px_rgba(129,140,248,0.9)]"
+                />
+              )}
               <svg
                 viewBox="0 0 24 24"
-                fill="none"
+                fill={on ? 'currentColor' : 'none'}
+                fillOpacity={on ? 0.2 : 0}
                 stroke="currentColor"
-                strokeWidth={on ? 2.2 : 1.8}
+                strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 className="h-5 w-5"
@@ -133,10 +137,8 @@ function BottomNav() {
 }
 
 export default function App() {
-  const { ready, activities, activityLogs, settings } = useApp()
+  const { ready, activities, activityLogs } = useApp()
   const { pathname } = useLocation()
-  const now = useNow(60_000)
-  useTheme(settings.theme, now)
   useActivityReminders(activities, activityLogs)
   const immersive = IMMERSIVE.some((prefix) => pathname.startsWith(prefix))
 
@@ -162,14 +164,8 @@ export default function App() {
             <Route path="/" element={<Today />} />
             <Route path="/academia" element={<Home />} />
             <Route path="/desempenho" element={<Performance />} />
-            <Route path="/padroes" element={<Patterns />} />
-            <Route path="/vida" element={<Life />} />
-            <Route path="/vida/frases" element={<CouragePhrases />} />
-            <Route path="/vida/ajustes" element={<Navigate to="/config" replace />} />
-            <Route path="/checkin/:day" element={<Checkin />} />
             <Route path="/agenda" element={<Agenda />} />
             <Route path="/agenda/nova" element={<ActivityForm />} />
-            <Route path="/agenda/novo" element={<Navigate to="/agenda/nova" replace />} />
             <Route path="/agenda/:activityId" element={<ActivityForm key="edit" />} />
             <Route path="/coragem" element={<CourageHome />} />
             <Route path="/coragem/painel" element={<CourageDashboard />} />
@@ -186,7 +182,6 @@ export default function App() {
             <Route path="/stats" element={<Stats />} />
             <Route path="/exercicio/:exerciseId" element={<ExerciseDetail />} />
             <Route path="/treinos" element={<RoutineList />} />
-            <Route path="/treinos/grupo/:groupId" element={<RoutineGroupEditor />} />
             <Route path="/treinos/:routineId" element={<RoutineEditor />} />
             <Route path="/exercicios" element={<ExerciseList />} />
             <Route path="/exercicios/:exerciseId" element={<ExerciseEditor />} />

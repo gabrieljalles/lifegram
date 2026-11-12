@@ -76,12 +76,6 @@ export interface AppSettings {
   romance_single?: boolean
   /** Meses (YYYY-MM) cuja DARF ja foi paga: some o aviso de vencimento. */
   finance_darf_paid?: string[]
-  /** Hora do check-in da noite (HH:mm). Ausente = 21:30. */
-  checkin_time?: string
-  /** Perguntas da parte 2 do check-in. Ausente = lista padrao. */
-  checkin_factors?: CheckinFactor[]
-  /** Papel (dia), capa (noite) ou automatico pela hora. Ausente = auto. */
-  theme?: 'auto' | 'dia' | 'noite'
   updated_at: string
 }
 
@@ -151,25 +145,6 @@ export interface Routine {
    * marcado: aparece como opcao livre e faltar nele nunca quebra a corrente.
    */
   scheduled_days: Weekday[]
-  /**
-   * Grupo de rodizio (Academia, Corrida, Abdominal). Com grupo, os dias vem
-   * do grupo e o app recomenda um treino dele por vez. null = treino avulso.
-   */
-  group_id?: ID | null
-  archived: boolean
-  updated_at: string
-}
-
-/**
- * Grupo de treinos que se revezam: nos dias marcados, o app recomenda o
- * treino do grupo feito ha mais tempo. Varios grupos = varios treinos no dia.
- */
-export interface RoutineGroup {
-  id: ID
-  user_id: string | null
-  name: string
-  scheduled_days: Weekday[]
-  position: number
   archived: boolean
   updated_at: string
 }
@@ -392,7 +367,13 @@ export type FunnelStage = 'nao' | 'sim' | 'encontro' | 'sexo'
 
 /** Onde a abordagem aconteceu — para descobrir onde voce converte mais. */
 export type FunnelContext =
-  'rua' | 'festa' | 'app' | 'academia' | 'trabalho' | 'faculdade' | 'outro'
+  | 'rua'
+  | 'festa'
+  | 'app'
+  | 'academia'
+  | 'trabalho'
+  | 'faculdade'
+  | 'outro'
 
 export interface CourageRejection {
   id: ID
@@ -454,19 +435,6 @@ export interface CourageScoreChange {
  */
 export type ActivityKind = 'recorrente' | 'esporadica'
 
-/**
- * O que o item e na vida: decide o rotulo, a acao na tela Hoje e como ele
- * entra nos Padroes. Linhas antigas nao tem o campo: leia por `itemTypeOf`.
- */
-export type ItemType = 'compromisso' | 'habito' | 'remedio' | 'treino' | 'coragem' | 'tarefa'
-
-/** Passo de uma tarefa: o que falta para chegar ao objetivo. */
-export interface Subtask {
-  id: ID
-  title: string
-  done: boolean
-}
-
 export interface Activity {
   id: ID
   user_id: string | null
@@ -493,19 +461,6 @@ export interface Activity {
   /** Evento correspondente no Google Agenda, quando ja sincronizado. */
   gcal_event_id: string | null
   archived: boolean
-  /** Migracao 017. Ausente nas linhas antigas: `itemTypeOf` deduz. */
-  item_type?: ItemType | null
-  /** Dose do remedio ou suplemento ("2.000 UI", "5 g"). Migracao 017. */
-  dose?: string | null
-  /**
-   * Prazo (YYYY-MM-DD) da tarefa. A recorrente aparece nos dias dela ate o
-   * prazo; passou e nao concluiu, aparece todo dia cobrando. Migracao 019.
-   */
-  deadline?: string | null
-  /** Passos da tarefa, na ordem. Migracao 019. */
-  subtasks?: Subtask[] | null
-  /** Tarefa concluida: some da agenda depois deste dia. Migracao 019. */
-  completed_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -539,55 +494,6 @@ export type SyncTable =
   | 'investment_quotes'
   | 'investment_sales'
   | 'motivation_phrases'
-  | 'checkins'
-  | 'routine_groups'
-
-/* ----------------------------------------------------------- check-in */
-
-/** Resposta de um fator da noite: sim/nao, quantidade (doses) ou horario. */
-export type FactorValue = boolean | number | string
-
-/**
- * Fechamento do dia, feito a noite. Uma linha por dia; se dois aparelhos
- * gravarem o mesmo dia, vale a de `updated_at` mais novo.
- */
-export interface Checkin {
-  id: ID
-  user_id: string | null
-  /** Dia avaliado (YYYY-MM-DD). */
-  day: string
-  /** Felicidade do dia, 1 a 5. */
-  happiness: number | null
-  /** Disposicao do dia, 1 a 5. */
-  energy: number | null
-  /** Sono da noite anterior, em minutos. */
-  sleep_minutes: number | null
-  /** Qualidade desse sono: 1 ruim, 2 ok, 3 bom. */
-  sleep_quality: number | null
-  /** Ate 3 palavras do dia. */
-  words: string[]
-  note: string | null
-  /**
-   * Respostas da parte 2 ("a noite de hoje"), por id do fator: alcool,
-   * sexo, masturbacao... Campo livre para a lista mudar sem migracao.
-   */
-  factors: Record<string, FactorValue>
-  deleted: boolean
-  created_at: string
-  updated_at: string
-}
-
-/** Pergunta da parte 2 do check-in. */
-export interface CheckinFactor {
-  id: string
-  label: string
-  kind: 'bool' | 'count' | 'time'
-  /** Unidade da contagem ("doses"). */
-  unit?: string
-  hint?: string
-  /** Desligada: some do check-in, mas as respostas antigas ficam. */
-  off?: boolean
-}
 
 /* ------------------------------------------------------------- frases */
 

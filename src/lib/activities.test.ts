@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  activityXP,
   agendaOf,
   describeDays,
   nextOccurrence,
@@ -101,6 +102,18 @@ describe('corrente e XP', () => {
   it('falta quebra a corrente', () => {
     const logs = ['12', '13', '15', '16'].map((d) => log('ler', `2026-10-${d}`))
     expect(streakOf(base, logs, monday)).toBe(2)
+  })
+
+  it('combo dobra o XP a partir de 7 seguidas', () => {
+    const todo = act({ days: [0, 1, 2, 3, 4, 5, 6] })
+    const logs = Array.from({ length: 8 }, (_, i) => log('ler', `2026-10-${String(12 + i)}`))
+    // 6 primeiras valem 20, a 7a e a 8a valem 40.
+    expect(activityXP([todo], logs, monday)).toEqual({ total: 6 * 20 + 2 * 40, today: 40 })
+  })
+
+  it('esporadica vale 40 e arquivar nao apaga o XP', () => {
+    const dentista = act({ id: 'd', kind: 'esporadica', days: [], date: '2026-10-19', archived: true })
+    expect(activityXP([dentista], [log('d', '2026-10-19')], monday)).toEqual({ total: 40, today: 40 })
   })
 })
 

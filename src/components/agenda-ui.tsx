@@ -1,8 +1,24 @@
-import type { Occurrence } from '../lib/activities'
+import { useState } from 'react'
+import { addMinutes, format } from 'date-fns'
+import { COMBO_AT, dayKey, relativeLabel, xpOf, type Occurrence } from '../lib/activities'
+import { travelOf } from '../lib/reminders'
 
 /**
- * Pecas visuais da agenda: a linha do item com o check grande.
+ * Pecas visuais da agenda: a linha de missao com o check grande e o card da
+ * proxima atividade na tela Hoje.
  */
+
+/** "+20 XP" flutuando por cima do botao, por um instante. */
+export function XPBurst({ xp }: { xp: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="animate-xp pointer-events-none absolute -top-2 right-0 text-sm font-black text-pr-400 drop-shadow"
+    >
+      +{xp} XP
+    </span>
+  )
+}
 
 export function CheckButton({
   done,
@@ -47,6 +63,8 @@ export function QuestRow({
   onToggle: () => void
   onOpen: () => void
 }) {
+  const [burst, setBurst] = useState(0)
+  const xp = xpOf(occ, streak)
   const { activity, done, late } = occ
 
   return (
@@ -73,7 +91,19 @@ export function QuestRow({
             <span className="tnum">{activity.time ?? 'Qualquer hora'}</span>
             <span aria-hidden="true">·</span>
             <span>{activity.kind === 'recorrente' ? '🔁' : '📌'}</span>
-            {streak > 1 && <span className="tnum text-fire-400">{streak} seguidas</span>}
+            <span
+              className={`tnum rounded-full px-1.5 py-px ${
+                done ? 'bg-go-500/20 text-go-400' : 'bg-pr-500/20 text-pr-400'
+              }`}
+            >
+              +{xp} XP
+            </span>
+            {streak > 0 && (
+              <span className="tnum text-fire-400">
+                🔥{streak}
+                {streak >= COMBO_AT ? ' x2' : ''}
+              </span>
+            )}
           </span>
           <span
             className={`mt-0.5 block truncate text-base font-bold ${
@@ -86,13 +116,101 @@ export function QuestRow({
         </span>
       </button>
       <span className="relative">
+        {burst > 0 && <XPBurst key={burst} xp={xp} />}
         <CheckButton
           done={done}
           disabled={!canCheck}
           label={done ? `Desmarcar ${activity.title}` : `Marcar ${activity.title} como feita`}
-          onClick={onToggle}
+          onClick={() => {
+            if (!done) setBurst((n) => n + 1)
+            onToggle()
+          }}
         />
       </span>
+    </div>
+  )
+}
+
+/** Card da tela Hoje: a proxima coisa da agenda, com o check a um toque. */
+export function NextActivityCard({
+  occ,
+  streak,
+  now,
+  todayLeft,
+  onDone,
+  onOpen,
+}: {
+  occ: Occurrence
+  streak: number
+  now: Date
+  /** Quantas atividades de hoje ainda estao em aberto (inclui esta). */
+  todayLeft: number
+  onDone: () => void
+  onOpen: () => void
+}) {
+  const [burst, setBurst] = useState(0)
+  const isToday = occ.day === dayKey(now)
+  const xp = xpOf(occ, streak)
+  const travel = travelOf(occ.activity)
+  const leaveAt = occ.at && travel > 0 ? addMinutes(occ.at, -travel) : null
+  // "Em cima da hora" conta a partir da hora de sair, nao da hora marcada.
+  const soon =
+    isToday && occ.at && occ.at.getTime() - now.getTime() < (15 + travel) * 60_000
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-2xl border-2 p-3.5 ${
+        occ.late
+          ? 'border-fire-500/60 bg-fire-500/10'
+          : soon
+            ? 'animate-glow border-brand-400 bg-brand-600/15'
+            : 'border-aqua-500/50 bg-aqua-500/10'
+      }`}
+    >
+      <button type="button" onClick={onOpen} className="flex w-full items-start gap-3 text-left">
+        <span
+          aria-hidden="true"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-ink-950/50 text-3xl"
+        >
+          {occ.activity.icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span
+              className={`text-[10px] font-black uppercase tracking-widest ${
+                occ.late ? 'text-fire-400' : 'text-aqua-400'
+              }`}
+            >
+              Próxima atividade
+            </span>
+            <span className="tnum rounded-full bg-pr-500/20 px-1.5 py-px text-[10px] font-black text-pr-400">
+              +{xp} XP
+            </span>
+            {streak > 0 && <span className="tnum text-[11px] font-black text-fire-400">🔥{streak}</span>}
+          </span>
+          <span className="mt-0.5 block truncate text-lg font-black">{occ.activity.title}</span>
+          <span className={`block text-xs font-semibold ${occ.late ? 'text-fire-400' : 'text-ink-300'}`}>
+            {relativeLabel(occ, now)}
+            {leaveAt && !occ.late ? ` · 🚶 saia às ${format(leaveAt, 'HH:mm')}` : ''}
+            {isToday && todayLeft > 1 ? ` · mais ${todayLeft - 1} hoje` : ''}
+          </span>
+        </span>
+      </button>
+      {isToday && (
+        <div className="relative mt-3">
+          {burst > 0 && <XPBurst key={burst} xp={xp} />}
+          <button
+            type="button"
+            onClick={() => {
+              setBurst((n) => n + 1)
+              onDone()
+            }}
+            className="w-full rounded-xl bg-aqua-500 py-3 text-sm font-black uppercase tracking-wide text-ink-950 shadow-[0_0_18px_rgba(52,211,166,0.35)] active:bg-aqua-400"
+          >
+            ✓ Feito
+          </button>
+        </div>
+      )}
     </div>
   )
 }

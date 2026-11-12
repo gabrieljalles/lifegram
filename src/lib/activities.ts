@@ -1,5 +1,4 @@
 import { addDays, format, parseISO } from 'date-fns'
-import { deadlineLabel, daysToDeadline, isTask } from './tasks'
 import type { Activity, ActivityLog, Weekday } from './types'
 
 /**
@@ -9,34 +8,22 @@ import type { Activity, ActivityLog, Weekday } from './types'
  * agenda e os testes calcularem exatamente a mesma coisa.
  */
 
-export const ACTIVITY_ICONS = [
-  '📖',
-  '🧘',
-  '💧',
-  '🏃',
-  '🎸',
-  '🧠',
-  '✍️',
-  '🧹',
-  '💊',
-  '📞',
-  '🦷',
-  '⭐',
-]
+/** XP por atividade cumprida. Esporadica vale mais: costuma ser mais rara. */
+export const ACTIVITY_XP: Record<Activity['kind'], number> = {
+  recorrente: 20,
+  esporadica: 40,
+}
+
+/** Corrente desse tamanho dobra o XP da recorrente: o combo. */
+export const COMBO_AT = 7
+
+export const ACTIVITY_ICONS = ['📖', '🧘', '💧', '🏃', '🎸', '🧠', '✍️', '🧹', '💊', '📞', '🦷', '⭐']
 
 export const dayKey = (date: Date): string => format(date, 'yyyy-MM-dd')
 
-/** Ignora `archived` de proposito: o historico antigo continua contando. */
+/** Ignora `archived` de proposito: a corrente antiga continua valendo XP. */
 export function occursOn(activity: Activity, date: Date): boolean {
   const key = dayKey(date)
-  if (isTask(activity)) {
-    // Concluida: aparece riscada no dia em que fechou, depois some.
-    if (activity.completed_at && key > dayKey(parseISO(activity.completed_at))) return false
-    if (key < activity.starts_on) return false
-    if (activity.kind === 'esporadica') return true
-    if (activity.deadline && key > activity.deadline) return true
-    return activity.days.includes(date.getDay() as Weekday)
-  }
   if (activity.kind === 'esporadica') return activity.date === key
   return key >= activity.starts_on && activity.days.includes(date.getDay() as Weekday)
 }
@@ -85,13 +72,7 @@ export function agendaOf(
         day,
         at,
         done: isDone,
-        late:
-          !isDone &&
-          (isTask(activity)
-            ? activity.deadline != null && activity.deadline < day
-            : at
-              ? at < now
-              : day < dayKey(now)),
+        late: !isDone && (at ? at < now : day < dayKey(now)),
       }
     })
     .sort((a, b) => {
@@ -140,6 +121,38 @@ export function streakOf(activity: Activity, logs: ActivityLog[], now = new Date
   return streak
 }
 
+/** XP de uma execucao: dobra quando ela fecha ou estende um combo. */
+export function xpForLog(activity: Activity, streakAtLog: number): number {
+  const base = ACTIVITY_XP[activity.kind]
+  return activity.kind === 'recorrente' && streakAtLog >= COMBO_AT ? base * 2 : base
+}
+
+/** XP que esta ocorrencia vale (ou valeu): a feita ja conta na corrente. */
+export function xpOf(occ: Occurrence, streak: number): number {
+  return xpForLog(occ.activity, occ.done ? streak : streak + 1)
+}
+
+/** XP total das atividades, e quanto disso entrou hoje. */
+export function activityXP(
+  activities: Activity[],
+  logs: ActivityLog[],
+  now = new Date(),
+): { total: number; today: number } {
+  const byId = new Map(activities.map((a) => [a.id, a]))
+  const todayKey = dayKey(now)
+  let total = 0
+  let today = 0
+  for (const log of logs) {
+    const activity = byId.get(log.activity_id)
+    if (!activity) continue
+    const streak = streakOf(activity, logs, parseISO(log.day))
+    const xp = xpForLog(activity, streak)
+    total += xp
+    if (log.day === todayKey) today += xp
+  }
+  return { total, today }
+}
+
 /* --------------------------------------------------------------- textos */
 
 const SHORT: Record<Weekday, string> = {
@@ -163,13 +176,8 @@ export function describeDays(days: Weekday[]): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-export function describeWhen(activity: Activity, now = new Date()): string {
+export function describeWhen(activity: Activity): string {
   const time = activity.time ?? 'qualquer hora'
-  if (isTask(activity)) {
-    const when = activity.kind === 'recorrente' ? describeDays(activity.days) : 'Até concluir'
-    const due = deadlineLabel(daysToDeadline(activity, now))
-    return [when, activity.time, due].filter(Boolean).join(' · ')
-  }
   if (activity.kind === 'recorrente') return `${describeDays(activity.days)} · ${time}`
   const date = activity.date ? format(parseISO(activity.date), 'dd/MM') : '—'
   return `${date} · ${time}`
