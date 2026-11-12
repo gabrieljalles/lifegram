@@ -23,12 +23,12 @@ import { ACCENT_TEXT, SKILL_AREAS, type SkillSnapshot } from '../lib/skills'
  */
 export default function Performance() {
   const navigate = useNavigate()
-  const { sessions, setLogs, routines, settings, courageGoals, courageAttempts } = useApp()
+  const { sessions, setLogs, routines, routineGroups, settings, courageGoals, courageAttempts } = useApp()
   const { xp } = useGame()
 
   const streak = useMemo(
-    () => computeScheduleStreak(sessions, scheduleOf(routines, settings)),
-    [sessions, routines, settings],
+    () => computeScheduleStreak(sessions, scheduleOf(routines, settings, routineGroups)),
+    [sessions, routines, settings, routineGroups],
   )
 
   const weeks = useMemo(() => bucketize(sessions, setLogs, 'week', 12), [sessions, setLogs])

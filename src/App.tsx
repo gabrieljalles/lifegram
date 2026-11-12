@@ -8,6 +8,7 @@ import ActiveWorkout from './screens/ActiveWorkout'
 import WorkoutSummary from './screens/WorkoutSummary'
 import RoutineList from './screens/editor/RoutineList'
 import RoutineEditor from './screens/editor/RoutineEditor'
+import RoutineGroupEditor from './screens/editor/RoutineGroupEditor'
 import ExerciseList from './screens/editor/ExerciseList'
 import ExerciseEditor from './screens/editor/ExerciseEditor'
 import Settings from './screens/Settings'
@@ -182,6 +183,7 @@ export default function App() {
             <Route path="/stats" element={<Stats />} />
             <Route path="/exercicio/:exerciseId" element={<ExerciseDetail />} />
             <Route path="/treinos" element={<RoutineList />} />
+            <Route path="/treinos/grupo/:groupId" element={<RoutineGroupEditor />} />
             <Route path="/treinos/:routineId" element={<RoutineEditor />} />
             <Route path="/exercicios" element={<ExerciseList />} />
             <Route path="/exercicios/:exerciseId" element={<ExerciseEditor />} />

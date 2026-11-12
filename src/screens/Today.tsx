@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -10,7 +10,7 @@ import { NextActivityCard } from '../components/agenda-ui'
 import { useNow } from '../lib/useNow'
 import { agendaOf, nextOccurrence, streakOf } from '../lib/activities'
 import { toggleActivity } from '../lib/activityActions'
-import { PERFECT_DAY_XP, type Mission, type WeeklyBoss } from '../lib/missions'
+import { PERFECT_DAY_XP, type Mission } from '../lib/missions'
 import { onlyNaos } from '../lib/rejections'
 import { computeScheduleStreak, scheduleOf } from '../lib/stats'
 import { useApp } from '../lib/store'
@@ -20,7 +20,6 @@ import { startWorkout } from '../lib/workout'
 import { alertDialog } from '../lib/dialog'
 
 // three.js pesa: o chefao 3D so baixa quando a tela Hoje aparece.
-const Boss3D = lazy(() => import('../components/Boss3D'))
 
 /** Nivel ja comemorado: guardado por aparelho, so para nao repetir a festa. */
 const LEVEL_KEY = 'game:lastLevel'
@@ -63,7 +62,7 @@ export default function Today() {
     reload,
   } = useApp()
   const clock = useNow()
-  const { xp, perfect, missions, boss } = useGame()
+  const { xp, perfect, missions } = useGame()
   const [busy, setBusy] = useState(false)
   const [levelUp, setLevelUp] = useState<number | null>(null)
 
@@ -154,13 +153,9 @@ export default function Today() {
         </button>
       </header>
 
-      {/* Uma das suas frases, trocando a cada visita, logo acima do chefao. */}
+      {/* Uma das suas frases, trocando a cada visita. */}
       <div className="px-4 pb-3">
         <MotivationCard />
-      </div>
-
-      <div className="px-4 pb-3">
-        <BossCard boss={boss} />
       </div>
 
       <div className="px-4">
@@ -244,7 +239,7 @@ export default function Today() {
         <div className="flex flex-col gap-2.5">
           {missions.map((mission) => (
             <MissionCard
-              key={mission.id}
+              key={mission.key ?? mission.id}
               mission={mission}
               onClick={() => navigate(mission.to)}
               action={missionAction(mission)}
@@ -268,6 +263,8 @@ export default function Today() {
 
   function missionAction(mission: Mission) {
     if (mission.id === 'treino' && !mission.done) {
+      // Com um treino em andamento, so a missao dele mostra o botao.
+      if (active && active.routine_id && active.routine_id !== mission.routine?.id) return null
       return (
         <button
           type="button"
@@ -303,64 +300,6 @@ function Chest({ open, streak }: { open: boolean; streak: number }) {
           {open
             ? `+${PERFECT_DAY_XP} XP de bônus${streak > 1 ? ` · ${streak} dias perfeitos seguidos` : ''}`
             : `Cumpra as missões para abrir · +${PERFECT_DAY_XP} XP`}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function BossCard({ boss }: { boss: WeeklyBoss }) {
-  return (
-    <div
-      className={`relative overflow-hidden rounded-3xl border-2 ${
-        boss.defeated ? 'border-go-500/60 bg-go-500/10' : 'border-red-500/40'
-      }`}
-      style={
-        boss.defeated
-          ? undefined
-          : {
-              background:
-                'radial-gradient(80% 70% at 50% 35%, rgba(239,68,68,0.22), transparent 70%), #12090d',
-            }
-      }
-    >
-      <Suspense
-        fallback={
-          <div className="flex h-[230px] items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-ink-700 border-t-red-400" />
-          </div>
-        }
-      >
-        <Boss3D design={boss.design} life={boss.life} defeated={boss.defeated} />
-      </Suspense>
-
-      <div className="px-4 pb-4">
-        <p className="text-center text-[10px] font-black uppercase tracking-widest text-ink-400">
-          {boss.defeated ? 'Derrotado!' : 'Chefão da semana · até domingo'}
-        </p>
-        <p className="truncate text-center text-xl font-black">{boss.name}</p>
-        <div
-          className="mt-2 h-3.5 overflow-hidden rounded-full bg-ink-950/70 ring-1 ring-red-900"
-          role="progressbar"
-          aria-label="Vida do chefão"
-          aria-valuemin={0}
-          aria-valuemax={boss.hp}
-          aria-valuenow={boss.hp - boss.damage}
-        >
-          <div
-            className="hp-fill h-full rounded-full transition-[width] duration-700"
-            style={{ width: `${boss.life * 100}%` }}
-          />
-        </div>
-        <p className="tnum mt-1 text-center text-[11px] text-ink-300">
-          {boss.defeated
-            ? 'Semana vencida. Na segunda chega outro.'
-            : `${boss.hp - boss.damage} / ${boss.hp} de vida · toque nele`}
-        </p>
-        <p className="tnum mt-3 flex justify-around border-t border-ink-700/60 pt-2.5 text-[11px] text-ink-300">
-          <span>🏋️ {boss.hits.treinos} treinos</span>
-          <span>🦁 {boss.hits.naos} nãos</span>
-          <span>✨ {boss.hits.outros} além do não</span>
         </p>
       </div>
     </div>

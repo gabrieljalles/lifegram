@@ -11,6 +11,7 @@ import {
   allActivities,
   allActivityLogs,
   allBodyWeightLogs,
+  allRoutineGroups,
   allCourageAttempts,
   allCourageGoals,
   allCourageRejections,
@@ -39,6 +40,7 @@ import type {
   Activity,
   ActivityLog,
   AppSettings,
+  RoutineGroup,
   CourageAttempt,
   CourageGoal,
   CourageRejection,
@@ -79,6 +81,7 @@ interface AppState {
   investmentQuotes: InvestmentQuote[]
   investmentSales: InvestmentSale[]
   motivationPhrases: MotivationPhrase[]
+  routineGroups: RoutineGroup[]
   active: ActiveWorkout | null
   settings: AppSettings
   exerciseById: Map<ID, Exercise>
@@ -113,6 +116,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [investmentQuotes, setInvestmentQuotes] = useState<InvestmentQuote[]>([])
   const [investmentSales, setInvestmentSales] = useState<InvestmentSale[]>([])
   const [motivationPhrases, setMotivationPhrases] = useState<MotivationPhrase[]>([])
+  const [routineGroups, setRoutineGroups] = useState<RoutineGroup[]>([])
   const [active, setActiveState] = useState<ActiveWorkout | null>(null)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -140,6 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       quotes,
       sales,
       phrases,
+      groups,
       act,
       prefs,
       pending,
@@ -161,6 +166,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       allInvestmentQuotes(),
       allInvestmentSales(),
       allMotivationPhrases(),
+      allRoutineGroups(),
       getActiveWorkout(),
       getSettings(),
       outboxCount(),
@@ -182,6 +188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setInvestmentQuotes(quotes)
     setInvestmentSales(sales)
     setMotivationPhrases(phrases)
+    setRoutineGroups(groups)
     setActiveState(act ?? null)
     setSettings(prefs)
     setPendingCount(pending)
@@ -279,6 +286,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     investmentQuotes,
     investmentSales,
     motivationPhrases,
+    routineGroups,
     active,
     settings,
     exerciseById,

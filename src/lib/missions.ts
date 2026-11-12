@@ -1,6 +1,6 @@
 import { format, parseISO } from 'date-fns'
 import { generateBoss, weekSeed, type BossDesign } from './bossGen'
-import { routinesForDay } from './stats'
+import { planForDay } from './plan'
 import { CARISMA, currentStepId, flatSteps } from './tracks'
 import { FUNNEL_XP, XP_RULES } from './xp'
 import type {
@@ -8,6 +8,7 @@ import type {
   CourageRejection,
   CourageTrackStep,
   Routine,
+  RoutineGroup,
   Session,
   Weekday,
 } from './types'
@@ -19,6 +20,8 @@ import type {
 
 export interface Mission {
   id: 'treino' | 'descanso' | 'trilha'
+  /** Chave unica quando ha mais de um treino no dia (um por grupo). */
+  key?: string
   icon: string
   title: string
   detail: string
@@ -40,8 +43,11 @@ export interface Mission {
 
 export interface MissionInput {
   routines: Routine[]
+  /** Grupos de rodizio: cada um com o dia marcado vira uma missao. */
+  groups?: RoutineGroup[]
   sessions: Array<
-    Pick<Session, 'started_at' | 'finished_at' | 'routine_id'> & Partial<Pick<Session, 'routine_name'>>
+    Pick<Session, 'started_at' | 'finished_at' | 'routine_id'> &
+      Partial<Pick<Session, 'routine_name'>>
   >
   settings: Pick<AppSettings, 'rest_days'>
   rejections: CourageRejection[]
@@ -70,9 +76,30 @@ export function dailyMissions(input: MissionInput, now = new Date()): Mission[] 
       to: '/academia',
     })
   } else {
-    const scheduled = routinesForDay(input.routines, weekday)
-    const free = scheduled.length === 0
-    const suggested = scheduled[0] ?? oldestRoutine(input.routines, input.sessions)
+    const plan = planForDay(input.routines, input.groups ?? [], input.sessions, now)
+    for (const item of plan) {
+      missions.push({
+        id: 'treino',
+        key: item.key,
+        icon: '🏋️',
+        title: item.session?.routine_name || item.routine?.name || 'Treinar',
+        detail: item.session
+          ? 'Treino feito. Corrente alimentada.'
+          : item.group
+            ? `${item.group.name} · próximo do rodízio.`
+            : 'Treino marcado para hoje.',
+        done: Boolean(item.session),
+        xp: XP_RULES.treino,
+        optional: false,
+        routine: item.routine ?? undefined,
+        to: '/academia',
+      })
+    }
+  }
+  // Nada marcado e nada feito: dia livre, com a sugestao do mais parado.
+  if (missions.length === 0) {
+    const free = true
+    const suggested = oldestRoutine(input.routines, input.sessions)
     // Ja treinou: a missao mostra o que foi feito, nao o que era sugerido.
     const routine = doneSession
       ? (input.routines.find((r) => r.id === doneSession.routine_id) ?? null)
@@ -205,7 +232,6 @@ export function perfectDays(
 
 /* ------------------------------------------------------- chefao da semana */
 
-
 export interface WeeklyBoss {
   name: string
   /** Pecas do boneco 3D: sorteadas pela semana. */
@@ -254,5 +280,13 @@ export function weeklyBoss(input: MissionInput, now = new Date()): WeeklyBoss {
   // A semana escolhe o chefao: muda toda segunda, igual em qualquer aparelho.
   const design = generateBoss(weekSeed(now))
   const life = Math.max(0, 1 - damage / hp)
-  return { name: design.name, design, hp, damage: Math.min(damage, hp), life, defeated: life === 0, hits: { treinos, naos, outros } }
+  return {
+    name: design.name,
+    design,
+    hp,
+    damage: Math.min(damage, hp),
+    life,
+    defeated: life === 0,
+    hits: { treinos, naos, outros },
+  }
 }

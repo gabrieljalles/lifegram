@@ -145,6 +145,25 @@ export interface Routine {
    * marcado: aparece como opcao livre e faltar nele nunca quebra a corrente.
    */
   scheduled_days: Weekday[]
+  /**
+   * Grupo de rodizio (Academia, Corrida, Abdominal). Com grupo, os dias vem
+   * do grupo e o app recomenda um treino dele por vez. null = treino avulso.
+   */
+  group_id?: ID | null
+  archived: boolean
+  updated_at: string
+}
+
+/**
+ * Grupo de treinos que se revezam: nos dias marcados, o app recomenda o
+ * treino do grupo feito ha mais tempo. Varios grupos = varios treinos no dia.
+ */
+export interface RoutineGroup {
+  id: ID
+  user_id: string | null
+  name: string
+  scheduled_days: Weekday[]
+  position: number
   archived: boolean
   updated_at: string
 }
@@ -494,6 +513,7 @@ export type SyncTable =
   | 'investment_quotes'
   | 'investment_sales'
   | 'motivation_phrases'
+  | 'routine_groups'
 
 /* ------------------------------------------------------------- frases */
 

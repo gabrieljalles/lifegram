@@ -11,6 +11,7 @@ import { computeXP } from './xp'
 export function useGame() {
   const {
     routines,
+    routineGroups,
     sessions,
     setLogs,
     settings,
@@ -24,6 +25,7 @@ export function useGame() {
   return useMemo(() => {
     const input = {
       routines,
+      groups: routineGroups,
       sessions,
       settings,
       rejections: courageRejections,
@@ -43,6 +45,7 @@ export function useGame() {
     return { xp, perfect, missions, boss: weeklyBoss(input) }
   }, [
     routines,
+    routineGroups,
     sessions,
     setLogs,
     settings,
