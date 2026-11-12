@@ -6,6 +6,7 @@ import Today from './screens/Today'
 import Home from './screens/Home'
 import ActiveWorkout from './screens/ActiveWorkout'
 import WorkoutSummary from './screens/WorkoutSummary'
+import WorkoutHistory from './screens/WorkoutHistory'
 import RoutineList from './screens/editor/RoutineList'
 import RoutineEditor from './screens/editor/RoutineEditor'
 import RoutineGroupEditor from './screens/editor/RoutineGroupEditor'
@@ -63,7 +64,7 @@ const NAV: NavItem[] = [
     to: '/academia',
     label: 'Treino',
     icon: 'M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10',
-    match: (p) => ['/academia', '/treinos', '/exercicio'].some((x) => p.startsWith(x)),
+    match: (p) => ['/academia', '/treinos', '/exercicio', '/historico'].some((x) => p.startsWith(x)),
   },
   {
     to: '/agenda',
@@ -181,6 +182,7 @@ export default function App() {
             <Route path="/treino" element={<ActiveWorkout />} />
             <Route path="/resumo/:sessionId" element={<WorkoutSummary />} />
             <Route path="/stats" element={<Stats />} />
+            <Route path="/historico" element={<WorkoutHistory />} />
             <Route path="/exercicio/:exerciseId" element={<ExerciseDetail />} />
             <Route path="/treinos" element={<RoutineList />} />
             <Route path="/treinos/grupo/:groupId" element={<RoutineGroupEditor />} />

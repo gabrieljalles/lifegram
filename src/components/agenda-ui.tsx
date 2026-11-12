@@ -167,7 +167,8 @@ export function NextActivityCard({
             : 'border-aqua-500/50 bg-aqua-500/10'
       }`}
     >
-      <button type="button" onClick={onOpen} className="flex w-full items-start gap-3 text-left">
+      <div className="flex items-center gap-3">
+      <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-start gap-3 text-left">
         <span
           aria-hidden="true"
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-ink-950/50 text-3xl"
@@ -197,7 +198,7 @@ export function NextActivityCard({
         </span>
       </button>
       {isToday && (
-        <div className="relative mt-3">
+        <div className="relative shrink-0">
           {burst > 0 && <XPBurst key={burst} xp={xp} />}
           <button
             type="button"
@@ -205,12 +206,17 @@ export function NextActivityCard({
               setBurst((n) => n + 1)
               onDone()
             }}
-            className="w-full rounded-xl bg-aqua-500 py-3 text-sm font-black uppercase tracking-wide text-ink-950 shadow-[0_0_18px_rgba(52,211,166,0.35)] active:bg-aqua-400"
+            aria-label="Marcar como feito"
+            className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-2xl bg-aqua-500 text-ink-950 shadow-[0_0_18px_rgba(52,211,166,0.35)] active:bg-aqua-400"
           >
-            ✓ Feito
+            <span className="text-2xl font-black leading-none" aria-hidden="true">
+              ✓
+            </span>
+            <span className="text-[10px] font-black uppercase leading-none tracking-wide">Feito</span>
           </button>
         </div>
       )}
+      </div>
     </div>
   )
 }

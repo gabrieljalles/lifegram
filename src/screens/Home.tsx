@@ -334,7 +334,18 @@ export default function Home() {
         </div>
       </Section>
 
-      <Section title="Frequência">
+      <Section
+        title="Frequência"
+        action={
+          <button
+            type="button"
+            onClick={() => navigate('/historico')}
+            className="text-xs font-semibold text-brand-400"
+          >
+            Ver histórico
+          </button>
+        }
+      >
         <Card className="p-3.5">
           <Heatmap days={heat} />
           {streak.longest > 0 && (

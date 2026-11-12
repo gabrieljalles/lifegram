@@ -101,6 +101,7 @@ export default function RoutineList() {
       <Header
         title="Meus treinos"
         subtitle="Grupos de rodízio e treinos avulsos"
+        back="/academia"
         action={
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={createGroup} disabled={busy}>

@@ -292,6 +292,22 @@ export async function allSessions(): Promise<Session[]> {
   return rows.sort((a, b) => b.started_at.localeCompare(a.started_at))
 }
 
+/**
+ * Apaga o treino e as series dele, aqui e na nuvem. E a unica forma de um
+ * treino sair de todos os calculos: volume, recordes e recomendacao de carga
+ * leem as series direto, sem passar pela sessao.
+ */
+export async function deleteSession(id: ID) {
+  const database = await db()
+  const logs = await database.getAllFromIndex('set_logs', 'by_session', id)
+  for (const log of logs) {
+    await database.delete('set_logs', log.id)
+    await enqueue('set_logs', log.id, 'delete')
+  }
+  await database.delete('sessions', id)
+  await enqueue('sessions', id, 'delete')
+}
+
 export async function putSetLog(log: SetLog, { sync = true } = {}) {
   const database = await db()
   await database.put('set_logs', log)

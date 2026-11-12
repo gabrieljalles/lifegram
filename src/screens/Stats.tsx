@@ -153,7 +153,18 @@ export default function Stats() {
     return (
       <div>
         <header className="safe-t px-4 pb-2 pt-4">
+          <div className="flex items-center gap-1">
+          <Link
+            to="/desempenho"
+            aria-label="Voltar"
+            className="-ml-2 rounded-full p-2 text-ink-300 active:bg-ink-800"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+              <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Link>
           <h1 className="text-2xl font-bold tracking-tight">Gráficos de treino</h1>
+        </div>
         </header>
         {bodyWeightSection}
         <EmptyState
@@ -168,7 +179,18 @@ export default function Stats() {
   return (
     <div>
       <header className="safe-t px-4 pb-3 pt-4">
-        <h1 className="text-2xl font-bold tracking-tight">Gráficos de treino</h1>
+        <div className="flex items-center gap-1">
+          <Link
+            to="/desempenho"
+            aria-label="Voltar"
+            className="-ml-2 rounded-full p-2 text-ink-300 active:bg-ink-800"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+              <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Link>
+          <h1 className="text-2xl font-bold tracking-tight">Gráficos de treino</h1>
+        </div>
         <div className="mt-3 flex rounded-xl bg-ink-850 p-1">
           {PERIODS.map((option) => (
             <button

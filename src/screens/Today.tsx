@@ -270,9 +270,14 @@ export default function Today() {
           type="button"
           disabled={busy}
           onClick={() => void begin(mission)}
-          className="w-full rounded-xl bg-go-600 py-3 text-sm font-black uppercase tracking-wide text-white shadow-[0_0_18px_rgba(34,197,94,0.35)] active:bg-go-500 disabled:opacity-50"
+          className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-2xl bg-go-600 text-white shadow-[0_0_18px_rgba(34,197,94,0.35)] active:bg-go-500 disabled:opacity-50"
         >
-          {active ? 'Continuar treino' : mission.routine ? 'Começar treino ›' : 'Montar um treino ›'}
+          <span className="text-xl font-black leading-none" aria-hidden="true">
+            {mission.routine ? '▶' : '+'}
+          </span>
+          <span className="text-[10px] font-black uppercase leading-none tracking-wide">
+            {active ? 'Continuar' : mission.routine ? 'Começar' : 'Montar'}
+          </span>
         </button>
       )
     }

@@ -13,17 +13,24 @@ import type { FunnelContext } from '../lib/types'
 
 export function LevelCard({ xp, children }: { xp: XPState; children?: ReactNode }) {
   return (
-    <div className="game-card relative overflow-hidden rounded-3xl border border-brand-500/40 p-4">
-      <div className="flex items-center gap-3.5">
-        {/* Escudo do nivel: o numero que mais importa, maior que tudo. */}
-        <div className="level-shield flex h-16 w-14 shrink-0 flex-col items-center justify-center text-ink-950">
-          <span className="text-[9px] font-black uppercase leading-none tracking-wider">nível</span>
-          <span className="tnum text-2xl font-black leading-none">{xp.level}</span>
+    <div className="game-card relative overflow-hidden rounded-2xl border border-brand-500/40 px-3 py-2">
+      <div className="flex items-center gap-3">
+        {/* Escudo do nivel: compacto, para sobrar tela para as missoes. */}
+        <div className="level-shield flex h-11 w-10 shrink-0 flex-col items-center justify-center text-ink-950">
+          <span className="text-[7px] font-black uppercase leading-none tracking-wider">nível</span>
+          <span className="tnum text-lg font-black leading-none">{xp.level}</span>
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-black tracking-tight">{xp.title}</p>
+          {/* Titulo e XP na mesma linha: uma linha a menos de altura. */}
+          <p className="flex items-baseline justify-between gap-2">
+            <span className="truncate text-sm font-black tracking-tight">{xp.title}</span>
+            <span className="tnum shrink-0 text-[11px] text-ink-300">
+              {xp.today > 0 && <span className="font-bold text-pr-400">+{xp.today} hoje · </span>}
+              {xp.into} / {xp.span} XP
+            </span>
+          </p>
           <div
-            className="mt-1.5 h-3 overflow-hidden rounded-full bg-ink-950/70 ring-1 ring-ink-600"
+            className="mt-1 h-2 overflow-hidden rounded-full bg-ink-950/70 ring-1 ring-ink-600"
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={xp.span}
@@ -35,12 +42,6 @@ export function LevelCard({ xp, children }: { xp: XPState; children?: ReactNode 
               style={{ width: `${Math.max(3, xp.ratio * 100)}%` }}
             />
           </div>
-          <p className="tnum mt-1 flex justify-between text-[11px] text-ink-300">
-            <span>
-              {xp.into} / {xp.span} XP
-            </span>
-            {xp.today > 0 && <span className="font-bold text-pr-400">+{xp.today} hoje</span>}
-          </p>
         </div>
       </div>
       {children}
@@ -70,7 +71,8 @@ export function MissionCard({
             : 'border-brand-500/50 bg-brand-600/10'
       }`}
     >
-      <button type="button" onClick={onClick} className="flex w-full items-start gap-3 text-left">
+      <div className="flex items-center gap-3">
+      <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-start gap-3 text-left">
         <span
           aria-hidden="true"
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-2xl ${
@@ -114,6 +116,9 @@ export function MissionCard({
           )}
         </span>
       </button>
+      {/* Acao a direita, quadrada: nao gasta uma linha inteira do cartao. */}
+      {action && <div className="shrink-0">{action}</div>}
+      </div>
       {mission.next && (
         <div className="mt-3 border-t border-go-500/30 pt-3">
           <div className="flex items-start gap-3">
@@ -147,7 +152,6 @@ export function MissionCard({
           </button>
         </div>
       )}
-      {action && <div className="mt-3">{action}</div>}
     </div>
   )
 }
@@ -172,12 +176,17 @@ export function StatPill({
     go: 'border-go-500/40 bg-go-500/10 text-go-400',
   }
   return (
-    <div className={`flex flex-1 flex-col items-center rounded-2xl border px-2 py-2.5 ${tones[tone]}`}>
-      <span className="text-lg leading-none" aria-hidden="true">
-        {icon}
+    <div
+      className={`flex min-w-0 flex-1 flex-col items-center rounded-xl border px-1 py-1.5 ${tones[tone]}`}
+    >
+      {/* Icone e numero lado a lado: uma linha a menos de altura. */}
+      <span className="flex items-center gap-1 leading-none">
+        <span className="text-sm" aria-hidden="true">
+          {icon}
+        </span>
+        <span className="tnum text-base font-black">{value}</span>
       </span>
-      <span className="tnum mt-1 text-xl font-black leading-none">{value}</span>
-      <span className="mt-1 text-center text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+      <span className="mt-1 w-full truncate text-center text-[9px] font-semibold uppercase leading-[1.4] text-ink-400">
         {label}
       </span>
     </div>
