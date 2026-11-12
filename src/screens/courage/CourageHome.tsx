@@ -14,7 +14,6 @@ import {
   weeklyStreak,
 } from '../../lib/courage'
 import { addRejection, setRejectionContext, undoLastRejection } from '../../lib/courageActions'
-import ThreeSeconds from '../../components/ThreeSeconds'
 import { ContextPicker } from '../../components/game'
 import {
   FUNNEL_STAGES,
@@ -77,7 +76,6 @@ export default function CourageHome() {
     detail: string
   } | null>(null)
   const [savingNo, setSavingNo] = useState(false)
-  const [threeSeconds, setThreeSeconds] = useState(false)
   /** Ultimo registro do funil: recebe o "onde foi?" logo depois do toque. */
   const [last, setLast] = useState<{ id: string; context: FunnelContext | null } | null>(null)
   /** Janela curta de arrependimento: toque errado nao pode sujar a contagem. */
@@ -263,31 +261,8 @@ export default function CourageHome() {
       />
 
 
-      {/* Colecao de naos: fica fora do bloco de objetivos de proposito —
-          contar "nao" nao depende de ter escada montada, e e o primeiro
-          passo de quem ainda nao criou nenhum degrau. */}
-      <div className="px-4 pt-4">
-        <button
-          type="button"
-          onClick={() => setThreeSeconds(true)}
-          className="game-card flex w-full items-center gap-3.5 rounded-3xl border-2 border-fire-500/60 p-4 text-left shadow-[0_0_28px_rgba(249,115,22,0.25)] transition-transform active:scale-[0.98]"
-        >
-          <span className="animate-float text-4xl" aria-hidden="true">
-            ⚡
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-lg font-black tracking-tight text-fire-400">
-              Regra dos 3 segundos
-            </span>
-            <span className="block text-xs leading-snug text-ink-300">
-              Viu alguém? Toca aqui, conta 3-2-1 e vai antes do medo montar a desculpa.
-            </span>
-          </span>
-        </button>
-      </div>
-
       {/* Frases que te marcaram: aparecem no topo da tela Hoje. */}
-      <div className="px-4 pt-3">
+      <div className="px-4 pt-4">
         <button
           type="button"
           onClick={() => navigate('/coragem/frases')}
@@ -565,7 +540,6 @@ export default function CourageHome() {
         </>
       )}
 
-      {threeSeconds && <ThreeSeconds onClose={() => setThreeSeconds(false)} />}
       {celebration && (
         <PRCelebration
           icon={celebration.icon}
