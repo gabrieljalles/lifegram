@@ -1,5 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { pickPhrase } from '../lib/motivation'
 import { formatClock } from '../lib/stats'
+import { useApp } from '../lib/store'
 import { notifyRestFinished, useCountdown, useCountdownFeedback } from '../lib/timer'
 import { Button } from './ui'
 
@@ -28,6 +30,13 @@ export default function RestTimer({
   onDone: () => void
 }) {
   const remaining = useCountdown(endsAt, onDone)
+  const { motivationPhrases } = useApp()
+  // Uma frase sua por descanso; tocar troca, sem repetir a que estava na tela.
+  const [pick, setPick] = useState(() => ({ seed: Math.random(), last: null as string | null }))
+  const phrase = pickPhrase(motivationPhrases, pick.seed, pick.last)
+  const shown = useRef<string | null>(null)
+  shown.current = phrase?.id ?? null
+  const nextPhrase = () => setPick({ seed: Math.random(), last: shown.current })
   useCountdownFeedback(remaining, true)
 
   // O aviso de sistema so aparece se voce nao estiver olhando a tela.
@@ -46,9 +55,37 @@ export default function RestTimer({
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-400">Descanso</p>
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
+      <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6">
+        {/* Suas frases em cima do relogio: o descanso vira um respiro de cabeca. */}
+        {phrase && (
+          <button
+            type="button"
+            onClick={nextPhrase}
+            aria-label="Frase do momento. Toque para ver outra."
+            className="w-full max-w-sm rounded-2xl border border-brand-500/40 bg-gradient-to-br from-brand-600/20 via-ink-850 to-ink-850 px-5 py-4 text-center active:from-brand-600/30"
+          >
+            <span aria-hidden="true" className="block font-serif text-4xl leading-[0.5] text-brand-400/70">
+              “
+            </span>
+            <span
+              key={phrase.id}
+              className="animate-pop-in mt-2 block whitespace-pre-line text-base font-bold leading-snug text-ink-50"
+            >
+              {phrase.text}
+            </span>
+            {phrase.author && (
+              <span className="mt-1.5 block text-xs font-semibold text-ink-300">— {phrase.author}</span>
+            )}
+            {motivationPhrases.length > 1 && (
+              <span className="mt-2 block text-[10px] font-semibold uppercase tracking-widest text-ink-400">
+                toque para a próxima
+              </span>
+            )}
+          </button>
+        )}
+
         <div className="relative">
-          <svg viewBox="0 0 280 280" className="h-64 w-64 -rotate-90" aria-hidden="true">
+          <svg viewBox="0 0 280 280" className={`${phrase ? 'h-52 w-52' : 'h-64 w-64'} -rotate-90`} aria-hidden="true">
             <circle cx="140" cy="140" r={RADIUS} fill="none" stroke="#1f2b3d" strokeWidth="14" />
             <circle
               cx="140"
@@ -65,7 +102,7 @@ export default function RestTimer({
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span
-              className={`tnum text-6xl font-bold leading-none ${urgent ? 'text-fire-400' : 'text-ink-50'}`}
+              className={`tnum ${phrase ? 'text-5xl' : 'text-6xl'} font-bold leading-none ${urgent ? 'text-fire-400' : 'text-ink-50'}`}
               role="timer"
               aria-live="off"
             >
